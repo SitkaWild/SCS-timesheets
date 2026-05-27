@@ -368,6 +368,95 @@ input[type=number]{width:80px;text-align:right;}
       </div>
     </div>
 
+    <!-- REIMBURSEMENTS -->
+    <div id="panel-reimb" class="panel">
+      <div class="section-head"><h2>Reimbursement request</h2></div>
+      <div class="g2">
+        <div><label class="fl">Employee</label><div id="reimb-emp" style="font-size:15px;font-weight:600;padding:9px 0;"></div></div>
+        <div><label class="fl" for="reimb-period">Pay period</label><select id="reimb-period"></select></div>
+      </div>
+      <div class="card" style="padding:0 0 1rem 0;">
+        <div style="padding:.75rem 1rem .5rem;font-size:13px;font-weight:600;border-bottom:1px solid var(--border-lt);display:flex;justify-content:space-between;align-items:center;">
+          <span>Expenditure items</span>
+          <button class="btn btn-sm btn-primary" onclick="addReimbRow()">+ Add item</button>
+        </div>
+        <table style="width:100%;border-collapse:collapse;font-size:13px;">
+          <thead><tr style="background:var(--bg);">
+            <th style="padding:8px 10px;font-size:10px;font-weight:600;text-transform:uppercase;color:var(--t3);text-align:left;border-bottom:1px solid var(--border);">Item description</th>
+            <th style="padding:8px 10px;font-size:10px;font-weight:600;text-transform:uppercase;color:var(--t3);text-align:left;border-bottom:1px solid var(--border);width:100px;">Cost ($)</th>
+            <th style="padding:8px 10px;font-size:10px;font-weight:600;text-transform:uppercase;color:var(--t3);text-align:left;border-bottom:1px solid var(--border);width:120px;">Account</th>
+            <th style="padding:8px 10px;font-size:10px;font-weight:600;text-transform:uppercase;color:var(--t3);text-align:left;border-bottom:1px solid var(--border);width:150px;">Class</th>
+            <th style="padding:8px 10px;border-bottom:1px solid var(--border);width:40px;"></th>
+          </tr></thead>
+          <tbody id="reimb-rows"></tbody>
+          <tfoot><tr>
+            <td colspan="4" style="padding:10px;text-align:right;font-weight:600;border-top:2px solid var(--border);">Total: <span id="reimb-total">$0.00</span></td>
+            <td style="border-top:2px solid var(--border);"></td>
+          </tr></tfoot>
+        </table>
+      </div>
+      <div style="margin-bottom:1.25rem;">
+        <label class="fl">Attach receipts</label>
+        <p style="font-size:12px;color:var(--t2);margin-bottom:8px;">Upload photos or scans of your receipts. You can select multiple files.</p>
+        <label class="btn" style="cursor:pointer;display:inline-flex;">
+          Take photo or upload receipt
+          <input type="file" id="receipt-files" accept="image/*,application/pdf" multiple style="display:none;" onchange="previewReceipts(event)"/>
+        </label>
+        <div id="receipt-preview" style="display:flex;flex-wrap:wrap;gap:8px;margin-top:10px;"></div>
+      </div>
+      <div style="margin-bottom:1.25rem;">
+        <label class="fl">Employee signature</label>
+        <div style="position:relative;border:1px solid var(--border);border-radius:var(--r);background:var(--surface);height:80px;cursor:crosshair;">
+          <canvas id="sig-reimb" style="width:100%;height:100%;display:block;border-radius:var(--r);touch-action:none;"></canvas>
+          <button onclick="clearSig('sig-reimb')" style="position:absolute;top:4px;right:6px;font-size:11px;background:none;border:none;color:var(--t3);cursor:pointer;">Clear</button>
+        </div>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-top:6px;flex-wrap:wrap;gap:6px;">
+          <label class="btn btn-sm" style="cursor:pointer;">Upload signature<input type="file" accept="image/*" style="display:none;" onchange="loadSigFile(event,'sig-reimb')"/></label>
+          <div style="display:flex;align-items:center;gap:6px;"><label style="font-size:11px;color:var(--t2);">Date:</label><input type="date" id="sig-reimb-date" style="width:auto;font-size:12px;padding:4px 8px;"/></div>
+        </div>
+      </div>
+      <div class="btn-row">
+        <button class="btn btn-primary" id="reimb-submit-btn" onclick="submitReimb()">Submit for approval</button>
+        <button class="btn" onclick="clearReimb()">Clear</button>
+      </div>
+      <div id="reimb-msg" class="flash"></div>
+    </div>
+
+    <!-- REIMBURSEMENT HISTORY -->
+    <div id="panel-reimb-history" class="panel">
+      <div class="section-head"><h2>My reimbursements</h2></div>
+      <div class="card" style="padding:.75rem 1.5rem;">
+        <table class="htable">
+          <thead><tr><th>Pay period</th><th>Items</th><th>Total</th><th>Status</th><th>Submitted</th></tr></thead>
+          <tbody id="reimb-hist-body"><tr><td colspan="5" class="loading">Loading...</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- REIMBURSEMENT APPROVALS (admin) -->
+    <div id="panel-reimb-approvals" class="panel">
+      <div class="section-head"><h2>Reimbursement requests</h2><button class="btn" onclick="exportReimbCSV()">Export CSV</button></div>
+      <div style="margin-bottom:1rem;display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+        <label class="fl" style="margin:0;">Filter:</label>
+        <select id="rf-staff" style="width:auto;font-size:13px;" onchange="renderReimbApprovals()"><option value="">All staff</option></select>
+        <select id="rf-status" style="width:auto;font-size:13px;" onchange="renderReimbApprovals()">
+          <option value="">All statuses</option><option value="pending">Pending</option>
+          <option value="approved">Approved</option><option value="rejected">Rejected</option>
+        </select>
+        <select id="rf-period" style="width:auto;font-size:13px;" onchange="renderReimbApprovals()"><option value="">All periods</option></select>
+        <button class="btn btn-sm" onclick="batchPrintReimb()" style="margin-left:auto;">Print all visible</button>
+      </div>
+      <div class="card" style="padding:.75rem 1.5rem;">
+        <div style="display:grid;grid-template-columns:110px 130px 1fr 80px 80px 120px;gap:8px;padding:6px 0;font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.07em;color:var(--t3);border-bottom:1px solid var(--border);">
+          <span>Staff</span><span>Period</span><span>Items</span><span>Total</span><span>Status</span><span>Action</span>
+        </div>
+        <div id="reimb-approvals-list"><div class="loading">Loading...</div></div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
   </div>
 </div>
 
@@ -548,6 +637,22 @@ async function enterApp(){
       (function(tid){btn.addEventListener('click',function(){showPanel(tid,btn);});})(t.id);
       tabs.appendChild(btn);
     });
+    // Reimbursement tabs for all users
+    var reimbTabsData=[
+      {id:'reimb',label:'Reimbursement'},
+      {id:'reimb-history',label:'My reimbursements'}
+    ];
+    if(currentUser.is_admin){
+      reimbTabsData.push({id:'reimb-approvals',label:'Reimb. approvals'});
+    }
+    reimbTabsData.forEach(function(t){
+      var btn=document.createElement('button');
+      btn.className='nav-tab';
+      btn.id='ntab-'+t.id;
+      btn.textContent=t.label;
+      (function(tid){btn.addEventListener('click',function(){showPanel(tid,btn);});})(t.id);
+      tabs.appendChild(btn);
+    });
   }
   allCats=await fetchCats();
   allClasses=await fetchClasses();
@@ -573,6 +678,9 @@ function showPanel(id,btn){
   if(id==='users')renderUsers();
   if(id==='classes'){renderClasses();renderCats();}
   if(id==='notifications'){loadEJSConfig();renderReminderList();loadTpl();}
+  if(id==='reimb'){initReimb();setTimeout(function(){initSig('sig-reimb');},100);}
+  if(id==='reimb-history')renderReimbHistory();
+  if(id==='reimb-approvals')renderReimbApprovals();
   if(id==='timesheet')setTimeout(function(){initSig('sig-emp');},100);
 }
 
@@ -1235,7 +1343,7 @@ function applyTpl(key,vars){
     subj=subj.replace(re,vars[k]||'');
     body=body.replace(re,vars[k]||'');
   });
-  return{subject:subj,message:body+'\n\n---\nSitka Conservation Society\nscstimesheets.netlify.app'};
+  return{subject:subj,message:body};
 }
 function getEJSConfig(){return JSON.parse(localStorage.getItem(EJS_KEY)||'{}');}
 function loadEJSConfig(){
@@ -1431,6 +1539,384 @@ function flash(el,msg,type){
   el.textContent=msg;el.style.display='flex';
   el.className='flash '+(type||'ok');
   setTimeout(function(){el.style.display='none';},5000);
+}
+
+// --- REIMBURSEMENTS ---
+var reimbFiles = [];
+var reimbRowCount = 0;
+
+function initReimb(){
+  document.getElementById('reimb-emp').textContent = currentUser.name;
+  var sel = document.getElementById('reimb-period');
+  var today = new Date().toISOString().slice(0,10);
+  var best = 0;
+  PP.forEach(function(p,i){if(today>=p.s&&today<=p.e)best=i;});
+  sel.innerHTML = PP.map(function(p,i){return '<option value="'+i+'">'+p.l+'</option>';}).join('');
+  sel.value = best;
+  var ed = document.getElementById('sig-reimb-date');
+  if(ed) ed.value = today;
+  if(!document.getElementById('reimb-rows').children.length) addReimbRow();
+  updateReimbTotal();
+}
+
+function addReimbRow(){
+  reimbRowCount++;
+  var n = reimbRowCount;
+  var cats = allCats.length ? allCats : ['General','Projects/Classes','Leave'];
+  var clsOptions = allClasses.map(function(c){
+    return '<option value="'+c.code+'">'+c.code+' - '+c.name+'</option>';
+  }).join('');
+  var row = document.createElement('tr');
+  row.id = 'rrow-'+n;
+  row.innerHTML =
+    '<td style="padding:6px 8px;"><input type="text" id="rdesc-'+n+'" placeholder="Item description" style="font-size:13px;"/></td>'+
+    '<td style="padding:6px 8px;"><input type="number" id="rcost-'+n+'" min="0" step="0.01" placeholder="0.00" style="width:90px;font-size:13px;text-align:right;" oninput="updateReimbTotal()"/></td>'+
+    '<td style="padding:6px 8px;"><input type="text" id="racct-'+n+'" placeholder="Account" style="font-size:13px;"/></td>'+
+    '<td style="padding:6px 8px;"><select id="rcls-'+n+'" style="font-size:12px;"><option value="">-- class --</option>'+clsOptions+'</select></td>'+
+    '<td style="padding:6px 8px;text-align:center;"><button onclick="removeReimbRow('+n+')" style="background:none;border:none;color:var(--red);cursor:pointer;font-size:16px;">x</button></td>';
+  document.getElementById('reimb-rows').appendChild(row);
+}
+
+function removeReimbRow(n){
+  var row = document.getElementById('rrow-'+n);
+  if(row) row.remove();
+  updateReimbTotal();
+}
+
+function updateReimbTotal(){
+  var rows = document.getElementById('reimb-rows').querySelectorAll('tr');
+  var total = 0;
+  rows.forEach(function(row){
+    var id = row.id.replace('rrow-','');
+    var cost = parseFloat(document.getElementById('rcost-'+id)&&document.getElementById('rcost-'+id).value||0)||0;
+    total += cost;
+  });
+  document.getElementById('reimb-total').textContent = '$'+total.toFixed(2);
+}
+
+function getReimbItems(){
+  var rows = document.getElementById('reimb-rows').querySelectorAll('tr');
+  var items = [];
+  rows.forEach(function(row){
+    var id = row.id.replace('rrow-','');
+    var desc = document.getElementById('rdesc-'+id);
+    var cost = document.getElementById('rcost-'+id);
+    var acct = document.getElementById('racct-'+id);
+    var cls = document.getElementById('rcls-'+id);
+    if(desc && desc.value.trim()){
+      items.push({
+        description: desc.value.trim(),
+        cost: parseFloat(cost&&cost.value||0)||0,
+        account: acct ? acct.value.trim() : '',
+        class_code: cls ? cls.value : ''
+      });
+    }
+  });
+  return items;
+}
+
+function previewReceipts(event){
+  var files = Array.from(event.target.files);
+  reimbFiles = reimbFiles.concat(files);
+  var preview = document.getElementById('receipt-preview');
+  preview.innerHTML = '';
+  reimbFiles.forEach(function(file,i){
+    var wrap = document.createElement('div');
+    wrap.style.cssText = 'position:relative;display:inline-block;';
+    if(file.type.startsWith('image/')){
+      var img = document.createElement('img');
+      img.style.cssText = 'width:80px;height:80px;object-fit:cover;border-radius:6px;border:1px solid var(--border);';
+      var reader = new FileReader();
+      reader.onload = function(e){img.src = e.target.result;};
+      reader.readAsDataURL(file);
+      wrap.appendChild(img);
+    } else {
+      var lbl = document.createElement('div');
+      lbl.style.cssText = 'width:80px;height:80px;border-radius:6px;border:1px solid var(--border);background:var(--bg);display:flex;align-items:center;justify-content:center;font-size:10px;color:var(--t2);text-align:center;padding:4px;';
+      lbl.textContent = file.name.slice(0,20);
+      wrap.appendChild(lbl);
+    }
+    var del = document.createElement('button');
+    del.textContent = 'x';
+    del.style.cssText = 'position:absolute;top:-6px;right:-6px;width:18px;height:18px;border-radius:50%;background:var(--red);color:#fff;border:none;cursor:pointer;font-size:11px;display:flex;align-items:center;justify-content:center;padding:0;';
+    (function(idx){del.addEventListener('click',function(){reimbFiles.splice(idx,1);previewReceipts({target:{files:[]}});});})(i);
+    wrap.appendChild(del);
+    preview.appendChild(wrap);
+  });
+}
+
+async function uploadReceipts(reimbId){
+  var urls = [];
+  for(var i=0;i<reimbFiles.length;i++){
+    var file = reimbFiles[i];
+    var ext = file.name.split('.').pop();
+    var path = 'receipts/'+reimbId+'/'+Date.now()+'_'+i+'.'+ext;
+    var r = await sb.storage.from('receipts').upload(path, file, {cacheControl:'2592000',upsert:false});
+    if(!r.error){
+      var urlData = sb.storage.from('receipts').getPublicUrl(path);
+      urls.push(urlData.data.publicUrl);
+    }
+  }
+  return urls;
+}
+
+async function submitReimb(){
+  var items = getReimbItems();
+  if(!items.length){alert('Please add at least one item.');return;}
+  var total = items.reduce(function(s,e){return s+e.cost;},0);
+  var idx = +document.getElementById('reimb-period').value;
+  var p = PP[idx];
+  var btn = document.getElementById('reimb-submit-btn');
+  btn.disabled = true; btn.textContent = 'Uploading...';
+  // Insert first to get ID for file paths
+  var r = await sb.from('reimbursements').insert({
+    user_id: currentUser.id,
+    staff_name: currentUser.name,
+    period: p.l,
+    period_due: p.due,
+    period_payday: p.pay,
+    items: items,
+    total: total,
+    status: 'pending',
+    receipt_urls: []
+  }).select().single();
+  if(r.error){flash(document.getElementById('reimb-msg'),'Error: '+r.error.message,'err');btn.disabled=false;btn.textContent='Submit for approval';return;}
+  var reimbId = r.data.id;
+  // Upload receipts
+  btn.textContent = 'Uploading receipts...';
+  var urls = await uploadReceipts(reimbId);
+  if(urls.length){
+    await sb.from('reimbursements').update({receipt_urls:urls}).eq('id',reimbId);
+  }
+  btn.disabled = false; btn.textContent = 'Submit for approval';
+  flash(document.getElementById('reimb-msg'),'Submitted successfully! Awaiting approval.','ok');
+  // Notify admin
+  var cfg = getEJSConfig();
+  if(cfg.adminEmail){
+    var subj = 'New Reimbursement Request: '+currentUser.name+' - '+p.l;
+    var msg = 'Hi,\n\n'+currentUser.name+' submitted a reimbursement request for '+p.l+'.\n\nTotal: $'+total.toFixed(2)+'\n\nItems:\n'+
+      items.map(function(e){return '- '+e.description+': $'+e.cost.toFixed(2);}).join('\n')+
+      '\n\nLog in to review: https://sitkawild.github.io/SCS-timesheets/\n\nSitka Conservation Society';
+    await sendEmail(cfg.adminEmail, subj, msg);
+  }
+  clearReimb();
+}
+
+function clearReimb(){
+  document.getElementById('reimb-rows').innerHTML = '';
+  reimbFiles = [];
+  reimbRowCount = 0;
+  document.getElementById('receipt-preview').innerHTML = '';
+  document.getElementById('receipt-files').value = '';
+  clearSig('sig-reimb');
+  addReimbRow();
+  updateReimbTotal();
+}
+
+async function renderReimbHistory(){
+  var body = document.getElementById('reimb-hist-body');
+  body.innerHTML = '<tr><td colspan="5" class="loading">Loading...</td></tr>';
+  var r = await sb.from('reimbursements').select('*').eq('user_id',currentUser.id).order('submitted_at',{ascending:false});
+  var data = r.data||[];
+  if(!data.length){body.innerHTML='<tr><td colspan="5" class="empty">No reimbursements submitted yet</td></tr>';return;}
+  var frag = document.createDocumentFragment();
+  data.forEach(function(s){
+    var tr = document.createElement('tr');
+    var itemSummary = s.items.map(function(e){return e.description+': $'+e.cost.toFixed(2);}).join(', ');
+    var statusCell = '<span class="badge badge-'+s.status+'">'+s.status+'</span>';
+    if(s.status==='rejected'&&s.rejection_reason){
+      statusCell += '<div style="font-size:11px;color:var(--red);margin-top:3px;">'+s.rejection_reason+'</div>';
+    }
+    tr.innerHTML =
+      '<td><strong>'+s.period+'</strong></td>'+
+      '<td style="font-size:12px;">'+itemSummary.slice(0,60)+(itemSummary.length>60?'...':'')+'</td>'+
+      '<td style="font-weight:600;">$'+parseFloat(s.total).toFixed(2)+'</td>'+
+      '<td>'+statusCell+'</td>'+
+      '<td style="font-size:12px;color:var(--t2);">'+(s.submitted_at?s.submitted_at.slice(0,10):'--')+'</td>';
+    frag.appendChild(tr);
+  });
+  body.innerHTML = '';
+  body.appendChild(frag);
+}
+
+var reimbApprovalData = [];
+
+async function renderReimbApprovals(){
+  var list = document.getElementById('reimb-approvals-list');
+  list.innerHTML = '<div class="loading">Loading...</div>';
+  var q = sb.from('reimbursements').select('*').order('submitted_at',{ascending:false});
+  var rs = document.getElementById('rf-staff'), rst = document.getElementById('rf-status'), rp = document.getElementById('rf-period');
+  if(rs&&rs.value) q=q.eq('user_id',rs.value);
+  if(rst&&rst.value) q=q.eq('status',rst.value);
+  if(rp&&rp.value) q=q.eq('period',rp.value);
+  var r = await q;
+  reimbApprovalData = r.data||[];
+  if(!reimbApprovalData.length){list.innerHTML='<div class="empty">No reimbursement requests</div>';return;}
+  if(rs&&rs.options.length<=1) allUsers.forEach(function(u){
+    if(!rs.querySelector('option[value="'+u.id+'"]'))
+      rs.insertAdjacentHTML('beforeend','<option value="'+u.id+'">'+u.name+'</option>');
+  });
+  if(rp&&rp.options.length<=1){
+    var seen={};
+    reimbApprovalData.forEach(function(s){if(!seen[s.period]){seen[s.period]=1;rp.insertAdjacentHTML('beforeend','<option value="'+s.period+'">'+s.period+'</option>');}});
+  }
+  var frag = document.createDocumentFragment();
+  reimbApprovalData.forEach(function(s){
+    var wrap = document.createElement('div');
+    wrap.style.borderBottom = '1px solid var(--border-lt)';
+    var actionBtns = s.status==='pending' ?
+      '<button class="btn btn-sm btn-approve">Approve</button> <button class="btn btn-sm btn-reject">Reject</button>' :
+      s.status==='rejected'&&s.rejection_reason ?
+        '<span style="font-size:11px;color:var(--red);">'+s.rejection_reason.slice(0,20)+'</span>' :
+        '<span style="font-size:12px;color:var(--t3);">--</span>';
+    var itemRows = s.items.map(function(e){
+      return '<tr>'+
+        '<td style="padding:5px 10px;font-size:13px;">'+e.description+'</td>'+
+        '<td style="padding:5px 10px;font-size:13px;">'+e.account+'</td>'+
+        '<td style="padding:5px 10px;font-size:12px;color:var(--t3);">'+e.class_code+'</td>'+
+        '<td style="padding:5px 10px;font-weight:600;text-align:right;">$'+parseFloat(e.cost).toFixed(2)+'</td></tr>';
+    }).join('');
+    var receiptHtml = '';
+    if(s.receipt_urls&&s.receipt_urls.length){
+      receiptHtml = '<div style="padding:8px 10px;display:flex;flex-wrap:wrap;gap:8px;">';
+      s.receipt_urls.forEach(function(url){
+        receiptHtml += '<a href="'+url+'" target="_blank"><img src="'+url+'" style="height:80px;width:80px;object-fit:cover;border-radius:6px;border:1px solid var(--border);"/></a>';
+      });
+      receiptHtml += '</div>';
+    }
+    wrap.innerHTML =
+      '<div style="display:grid;grid-template-columns:110px 130px 1fr 80px 80px 120px;gap:8px;align-items:center;padding:9px 0;font-size:13px;cursor:pointer;">'+
+        '<span style="font-weight:600;">'+s.staff_name+'</span>'+
+        '<span style="font-size:12px;color:var(--t2);">'+s.period+'</span>'+
+        '<span style="font-size:12px;color:var(--t2);">'+s.items.length+' item'+(s.items.length===1?'':'s')+'</span>'+
+        '<span style="font-weight:600;">$'+parseFloat(s.total).toFixed(2)+'</span>'+
+        '<span><span class="badge badge-'+s.status+'">'+s.status+'</span></span>'+
+        '<div style="display:flex;gap:4px;">'+actionBtns+'</div>'+
+      '</div>'+
+      '<div style="display:none;background:var(--bg);border-top:1px solid var(--border-lt);">'+
+        '<table style="width:100%;border-collapse:collapse;">'+
+          '<thead><tr style="background:var(--border-lt);">'+
+            '<th style="padding:6px 10px;font-size:10px;text-transform:uppercase;color:var(--t3);text-align:left;">Description</th>'+
+            '<th style="padding:6px 10px;font-size:10px;text-transform:uppercase;color:var(--t3);text-align:left;">Account</th>'+
+            '<th style="padding:6px 10px;font-size:10px;text-transform:uppercase;color:var(--t3);text-align:left;">Class</th>'+
+            '<th style="padding:6px 10px;font-size:10px;text-transform:uppercase;color:var(--t3);text-align:right;">Cost</th>'+
+          '</tr></thead>'+
+          '<tbody>'+itemRows+'</tbody>'+
+          '<tfoot><tr style="border-top:1px solid var(--border);">'+
+            '<td colspan="3" style="padding:6px 10px;font-size:12px;font-weight:600;text-align:right;">Total</td>'+
+            '<td style="padding:6px 10px;font-size:13px;font-weight:700;text-align:right;">$'+parseFloat(s.total).toFixed(2)+'</td>'+
+          '</tr></tfoot>'+
+        '</table>'+receiptHtml+
+      '</div>';
+    var header = wrap.querySelector('div');
+    var detail = wrap.querySelectorAll('div')[1];
+    header.addEventListener('click',function(e){
+      if(e.target.closest('button'))return;
+      detail.style.display = detail.style.display==='none' ? 'block' : 'none';
+    });
+    if(s.status==='pending'){
+      var btns = wrap.querySelectorAll('button');
+      var sid = s.id, sobj = s;
+      if(btns[0]) btns[0].addEventListener('click',function(e){e.stopPropagation();approveReimb(sid,sobj);});
+      if(btns[1]) btns[1].addEventListener('click',function(e){e.stopPropagation();rejectReimb(sid,sobj);});
+    }
+    frag.appendChild(wrap);
+  });
+  list.innerHTML = '';
+  list.appendChild(frag);
+}
+
+async function approveReimb(id,sub){
+  if(!confirm('Approve this reimbursement request?'))return;
+  await sb.from('reimbursements').update({status:'approved',rejection_reason:null}).eq('id',id);
+  var u = allUsers.find(function(x){return x.id===sub.user_id;});
+  if(u&&u.email){
+    var msg = 'Hi '+u.name+',\n\nYour reimbursement request for '+sub.period+' ($'+parseFloat(sub.total).toFixed(2)+') has been approved.\n\nSitka Conservation Society';
+    await sendEmail(u.email,'Reimbursement Approved - '+sub.period,msg);
+  }
+  renderReimbApprovals();
+}
+
+async function rejectReimb(id,sub){
+  var reason = prompt('Reason for rejection (staff will see this):');
+  if(reason===null)return;
+  var r = reason.trim()||'No reason given';
+  await sb.from('reimbursements').update({status:'rejected',rejection_reason:r}).eq('id',id);
+  var u = allUsers.find(function(x){return x.id===sub.user_id;});
+  if(u&&u.email){
+    var msg = 'Hi '+u.name+',\n\nYour reimbursement request for '+sub.period+' has been returned.\n\nReason: '+r+'\n\nSitka Conservation Society';
+    await sendEmail(u.email,'Reimbursement Returned - '+sub.period,msg);
+  }
+  renderReimbApprovals();
+}
+
+async function exportReimbCSV(){
+  var r = await sb.from('reimbursements').select('*').order('submitted_at',{ascending:false});
+  var data = r.data||[];
+  if(!data.length){alert('No reimbursements to export.');return;}
+  var csv = '"Staff","Period","Description","Cost","Account","Class","Total","Status","Submitted"\n';
+  data.forEach(function(s){
+    s.items.forEach(function(e){
+      csv+='"'+s.staff_name+'","'+s.period+'","'+e.description+'","$'+parseFloat(e.cost).toFixed(2)+'","'+(e.account||'')+'","'+(e.class_code||'')+'","$'+parseFloat(s.total).toFixed(2)+'","'+s.status+'","'+(s.submitted_at?s.submitted_at.slice(0,10):'')+'"\n';
+    });
+  });
+  dlCSV(csv,'SCS_Reimbursements.csv');
+}
+
+function batchPrintReimb(){
+  if(!reimbApprovalData.length){alert('No reimbursements to print.');return;}
+  var pages = reimbApprovalData.map(function(s){
+    var rows = s.items.map(function(e){
+      return '<tr>'+
+        '<td style="padding:5px 8px;border-bottom:1px solid #eee;">'+e.description+'</td>'+
+        '<td style="padding:5px 8px;border-bottom:1px solid #eee;text-align:right;">$'+parseFloat(e.cost).toFixed(2)+'</td>'+
+        '<td style="padding:5px 8px;border-bottom:1px solid #eee;">'+(e.account||'')+'</td>'+
+        '<td style="padding:5px 8px;border-bottom:1px solid #eee;">'+(e.class_code||'')+'</td></tr>';
+    }).join('');
+    var receiptImgs = '';
+    if(s.receipt_urls&&s.receipt_urls.length){
+      receiptImgs = '<div style="margin-top:1rem;"><div style="font-size:9px;font-weight:700;text-transform:uppercase;color:#666;margin-bottom:6px;">Receipts</div><div style="display:flex;flex-wrap:wrap;gap:8px;">';
+      s.receipt_urls.forEach(function(url){
+        receiptImgs += '<img src="'+url+'" style="height:120px;max-width:180px;object-fit:contain;border:1px solid #ccc;border-radius:4px;"/>';
+      });
+      receiptImgs += '</div></div>';
+    }
+    var sc = s.status==='approved'?'#2A5F2A':s.status==='rejected'?'#8B2020':'#7A4A08';
+    return '<div style="page-break-after:always;padding:2rem;font-family:Arial,sans-serif;font-size:13px;max-width:700px;margin:0 auto;">'+
+      '<h2 style="text-align:center;font-size:18px;margin-bottom:4px;">Sitka Conservation Society</h2>'+
+      '<div style="text-align:center;font-size:11px;color:#666;margin-bottom:1.5rem;text-transform:uppercase;letter-spacing:.08em;">Reimbursement Request</div>'+
+      '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;background:#EFF5EF;border:1px solid #B8D4B8;border-radius:6px;padding:10px 14px;margin-bottom:1.5rem;">'+
+        '<div><div style="font-size:9px;font-weight:700;text-transform:uppercase;color:#2A5F2A;">Employee</div><div style="font-size:13px;font-weight:700;">'+s.staff_name+'</div></div>'+
+        '<div><div style="font-size:9px;font-weight:700;text-transform:uppercase;color:#2A5F2A;">Pay period</div><div style="font-size:13px;font-weight:700;">'+s.period+'</div></div>'+
+        '<div><div style="font-size:9px;font-weight:700;text-transform:uppercase;color:#2A5F2A;">Status</div><div style="font-size:13px;font-weight:700;color:'+sc+';">'+s.status.charAt(0).toUpperCase()+s.status.slice(1)+'</div></div>'+
+      '</div>'+
+      '<table style="width:100%;border-collapse:collapse;margin-bottom:1rem;">'+
+        '<thead><tr style="background:#EFF5EF;"><th style="padding:6px 8px;font-size:9px;text-transform:uppercase;color:#666;text-align:left;border-bottom:1px solid #B8D4B8;">Item</th>'+
+        '<th style="padding:6px 8px;font-size:9px;text-transform:uppercase;color:#666;text-align:right;border-bottom:1px solid #B8D4B8;">Cost</th>'+
+        '<th style="padding:6px 8px;font-size:9px;text-transform:uppercase;color:#666;text-align:left;border-bottom:1px solid #B8D4B8;">Account</th>'+
+        '<th style="padding:6px 8px;font-size:9px;text-transform:uppercase;color:#666;text-align:left;border-bottom:1px solid #B8D4B8;">Class</th></tr></thead>'+
+        '<tbody>'+rows+'</tbody>'+
+        '<tfoot><tr><td colspan="1" style="padding:8px;font-weight:700;border-top:2px solid #B8D4B8;">TOTAL</td>'+
+        '<td style="padding:8px;font-size:15px;font-weight:700;text-align:right;border-top:2px solid #B8D4B8;">$'+parseFloat(s.total).toFixed(2)+'</td>'+
+        '<td colspan="2" style="border-top:2px solid #B8D4B8;"></td></tr></tfoot>'+
+      '</table>'+
+      receiptImgs+
+      '<div style="display:grid;grid-template-columns:1fr 1fr;gap:24px;margin-top:2rem;">'+
+        '<div><div style="font-size:9px;font-weight:700;text-transform:uppercase;color:#666;margin-bottom:8px;">Employee signature</div><div style="border-bottom:1px solid #333;height:44px;"></div><div style="font-size:10px;color:#666;margin-top:4px;">Date: ___________</div></div>'+
+        '<div><div style="font-size:9px;font-weight:700;text-transform:uppercase;color:#666;margin-bottom:8px;">Executive Director</div><div style="border-bottom:1px solid #333;height:44px;"></div><div style="font-size:10px;color:#666;margin-top:4px;">Date: ___________</div></div>'+
+      '</div></div>';
+  }).join('');
+  var win = window.open('','_blank');
+  if(!win){alert('Please allow popups.');return;}
+  var cnt = reimbApprovalData.length;
+  win.document.write('<!DOCTYPE html><html><head><meta charset="UTF-8"/><title>Reimbursements</title>'+
+    '<style>@media print{.noprint{display:none;}}body{font-family:Arial,sans-serif;margin:0;}</style></head><body>'+
+    '<div class="noprint" style="padding:1rem;background:#EFF5EF;display:flex;gap:10px;align-items:center;">'+
+      '<strong>'+cnt+' reimbursement'+(cnt===1?'':'s')+'</strong>'+
+      '<button onclick="window.print()" style="padding:8px 16px;background:#2A5F2A;color:#fff;border:none;border-radius:6px;cursor:pointer;">Print all</button>'+
+      '<button onclick="window.close()" style="padding:8px 16px;background:none;border:1px solid #ccc;border-radius:6px;cursor:pointer;">Close</button>'+
+    '</div>'+pages+'</body></html>');
+  win.document.close();
 }
 
 // --- BOOT ---
