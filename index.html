@@ -186,8 +186,6 @@ input[type=number]{width:80px;text-align:right;}
   <nav class="app-nav">
     <div class="nav-brand">SCS</div>
     <div class="nav-tabs" id="nav-tabs">
-      <button class="nav-tab active" onclick="showPanel('timesheet',this)" id="ntab-timesheet">Timesheet</button>
-      <button class="nav-tab" onclick="showPanel('history',this)" id="ntab-history">My history</button>
     </div>
     <div class="nav-right">
       <span class="nav-user">Signed in as <strong id="nav-uname"></strong></span>
@@ -373,6 +371,22 @@ input[type=number]{width:80px;text-align:right;}
             <thead><tr><th>Pay period</th><th>Items</th><th>Total</th><th>Status</th><th>Submitted</th></tr></thead>
             <tbody id="reimb-hist-body"><tr><td colspan="5" class="loading">Loading...</td></tr></tbody>
           </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- DASHBOARD -->
+    <div id="panel-dashboard" class="panel">
+      <div class="section-head"><h2>Dashboard</h2></div>
+      <div id="dashboard-calendar" style="background:var(--surface);border:1px solid var(--border);border-radius:var(--rl);padding:1.25rem 1.5rem;margin-bottom:1.25rem;"></div>
+      <div class="g2">
+        <div class="card" style="text-align:center;">
+          <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.07em;color:var(--t2);margin-bottom:8px;">Pending timesheets</div>
+          <div id="dash-pending-ts" style="font-size:36px;font-weight:700;color:var(--accent);">-</div>
+        </div>
+        <div class="card" style="text-align:center;">
+          <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.07em;color:var(--t2);margin-bottom:8px;">Pending reimbursements</div>
+          <div id="dash-pending-reimb" style="font-size:36px;font-weight:700;color:var(--amber);">-</div>
         </div>
       </div>
     </div>
@@ -625,18 +639,24 @@ async function enterApp(){
   document.getElementById('nav-uname').textContent=currentUser.name;
   var tabs=document.getElementById('nav-tabs');
   // Remove all dynamic tabs first
-  ['approvals','users','classes','notifications','reimb','reimb-approvals'].forEach(function(id){
+  ['dashboard','timesheet','history','approvals','users','classes','notifications','reimb','reimb-approvals'].forEach(function(id){
     var t=document.getElementById('ntab-'+id);if(t)t.remove();
   });
   // Build tab list based on role
-  var tabList=[{id:'reimb',label:'Reimbursement'}];
+  var tabList;
   if(currentUser.is_admin){
     tabList=[
+      {id:'dashboard',label:'Dashboard'},
       {id:'approvals',label:'Timesheet approvals'},
       {id:'reimb-approvals',label:'Reimb. approvals'},
       {id:'users',label:'Staff'},
       {id:'classes',label:'Classes'},
-      {id:'notifications',label:'Notifications'},
+      {id:'notifications',label:'Notifications'}
+    ];
+  } else {
+    tabList=[
+      {id:'timesheet',label:'Timesheet'},
+      {id:'history',label:'My history'},
       {id:'reimb',label:'Reimbursement'}
     ];
   }
@@ -651,8 +671,12 @@ async function enterApp(){
   allCats=await fetchCats();
   allClasses=await fetchClasses();
   initTS();
-  showPanel('timesheet',document.getElementById('ntab-timesheet'));
-  setTimeout(function(){initSig('sig-emp');},100);
+  if(currentUser.is_admin){
+    showPanel('dashboard',document.getElementById('ntab-dashboard'));
+  } else {
+    showPanel('timesheet',document.getElementById('ntab-timesheet'));
+    setTimeout(function(){initSig('sig-emp');},100);
+  }
   var ed=document.getElementById('sig-emp-date');
   if(ed)ed.value=new Date().toISOString().slice(0,10);
   var cfg=getEJSConfig();
@@ -667,6 +691,7 @@ function showPanel(id,btn){
   var panel=document.getElementById('panel-'+id);
   if(panel)panel.classList.add('active');
   if(btn)btn.classList.add('active');
+  if(id==='dashboard')renderDashboard();
   if(id==='history'){renderHistory();renderReimbHistory();}
   if(id==='approvals')renderApprovals();
   if(id==='users')renderUsers();
@@ -859,10 +884,10 @@ async function renderApprovals(){
     }).join('');
     var notesHtml=s.notes?'<div style="padding:8px 10px;font-size:12px;color:var(--t2);border-top:1px solid var(--border-lt);"><strong>Notes:</strong> '+s.notes+'</div>':'';
     var actionBtns=s.status==='pending'?
-      '<button class="btn btn-sm btn-approve">Approve</button> <button class="btn btn-sm btn-reject">Reject</button>':
+      '<button class="btn btn-sm btn-approve">Approve</button> <button class="btn btn-sm btn-reject">Reject</button> <button class="btn btn-sm btn-danger">Delete</button>':
       s.status==='rejected'&&s.rejection_reason?
-        '<span style="font-size:11px;color:var(--red);" title="'+s.rejection_reason+'">'+s.rejection_reason.slice(0,22)+'...</span>':
-        '<span style="font-size:12px;color:var(--t3);">--</span>';
+        '<span style="font-size:11px;color:var(--red);" title="'+s.rejection_reason+'">'+s.rejection_reason.slice(0,22)+'...</span> <button class="btn btn-sm btn-danger" style="font-size:11px;">Delete</button>':
+        '<span style="font-size:12px;color:var(--t3);">--</span> <button class="btn btn-sm btn-danger" style="font-size:11px;">Delete</button>';
     var wrap=document.createElement('div');
     wrap.style.borderBottom='1px solid var(--border-lt)';
     var headerHtml='<div class="ae" style="cursor:pointer;">'+
@@ -892,16 +917,26 @@ async function renderApprovals(){
       if(e.target.closest('.ab'))return;
       detail.style.display=detail.style.display==='none'?'block':'none';
     });
+    var allBtns=wrap.querySelectorAll('.ab button');
+    var sid=s.id,sname=s.staff_name,sobj=s;
     if(s.status==='pending'){
-      var btns=wrap.querySelectorAll('.ab button');
-      var sid=s.id,sname=s.staff_name,sobj=s;
-      if(btns[0])btns[0].addEventListener('click',function(e){e.stopPropagation();openApproveModal(sid,sname);});
-      if(btns[1])btns[1].addEventListener('click',function(e){e.stopPropagation();doReject(sid,sobj);});
+      if(allBtns[0])allBtns[0].addEventListener('click',function(e){e.stopPropagation();openApproveModal(sid,sname);});
+      if(allBtns[1])allBtns[1].addEventListener('click',function(e){e.stopPropagation();doReject(sid,sobj);});
+      if(allBtns[2])allBtns[2].addEventListener('click',function(e){e.stopPropagation();deleteSubmission(sid);});
+    } else {
+      var delBtn=wrap.querySelector('.ab .btn-danger');
+      if(delBtn)delBtn.addEventListener('click',function(e){e.stopPropagation();deleteSubmission(sid);});
     }
     frag.appendChild(wrap);
   });
   list.innerHTML='';
   list.appendChild(frag);
+}
+
+async function deleteSubmission(id){
+  if(!confirm('Delete this timesheet submission? This cannot be undone.'))return;
+  await sb.from('submissions').delete().eq('id',id);
+  renderApprovals();
 }
 
 function openApproveModal(id,name){
@@ -1775,10 +1810,10 @@ async function renderReimbApprovals(){
     var wrap = document.createElement('div');
     wrap.style.borderBottom = '1px solid var(--border-lt)';
     var actionBtns = s.status==='pending' ?
-      '<button class="btn btn-sm btn-approve">Approve</button> <button class="btn btn-sm btn-reject">Reject</button>' :
+      '<button class="btn btn-sm btn-approve">Approve</button> <button class="btn btn-sm btn-reject">Reject</button> <button class="btn btn-sm btn-danger">Delete</button>' :
       s.status==='rejected'&&s.rejection_reason ?
-        '<span style="font-size:11px;color:var(--red);">'+s.rejection_reason.slice(0,20)+'</span>' :
-        '<span style="font-size:12px;color:var(--t3);">--</span>';
+        '<span style="font-size:11px;color:var(--red);">'+s.rejection_reason.slice(0,20)+'</span> <button class="btn btn-sm btn-danger" style="font-size:11px;">Delete</button>' :
+        '<span style="font-size:12px;color:var(--t3);">--</span> <button class="btn btn-sm btn-danger" style="font-size:11px;">Delete</button>';
     var itemRows = s.items.map(function(e){
       return '<tr>'+
         '<td style="padding:5px 10px;font-size:13px;">'+e.description+'</td>'+
@@ -1824,16 +1859,26 @@ async function renderReimbApprovals(){
       if(e.target.closest('button'))return;
       detail.style.display = detail.style.display==='none' ? 'block' : 'none';
     });
+    var rbtns = wrap.querySelectorAll('button');
+    var sid = s.id, sobj = s;
     if(s.status==='pending'){
-      var btns = wrap.querySelectorAll('button');
-      var sid = s.id, sobj = s;
-      if(btns[0]) btns[0].addEventListener('click',function(e){e.stopPropagation();approveReimb(sid,sobj);});
-      if(btns[1]) btns[1].addEventListener('click',function(e){e.stopPropagation();rejectReimb(sid,sobj);});
+      if(rbtns[0]) rbtns[0].addEventListener('click',function(e){e.stopPropagation();approveReimb(sid,sobj);});
+      if(rbtns[1]) rbtns[1].addEventListener('click',function(e){e.stopPropagation();rejectReimb(sid,sobj);});
+      if(rbtns[2]) rbtns[2].addEventListener('click',function(e){e.stopPropagation();deleteReimb(sid);});
+    } else {
+      var rDelBtn = wrap.querySelector('.btn-danger');
+      if(rDelBtn) rDelBtn.addEventListener('click',function(e){e.stopPropagation();deleteReimb(sid);});
     }
     frag.appendChild(wrap);
   });
   list.innerHTML = '';
   list.appendChild(frag);
+}
+
+async function deleteReimb(id){
+  if(!confirm('Delete this reimbursement request? This cannot be undone.'))return;
+  await sb.from('reimbursements').delete().eq('id',id);
+  renderReimbApprovals();
 }
 
 async function approveReimb(id,sub){
@@ -1927,6 +1972,65 @@ function batchPrintReimb(){
       '<button onclick="window.close()" style="padding:8px 16px;background:none;border:1px solid #ccc;border-radius:6px;cursor:pointer;">Close</button>'+
     '</div>'+pages+'</body></html>');
   win.document.close();
+}
+
+// --- DASHBOARD ---
+async function renderDashboard(){
+  // Pending counts
+  var r1 = await sb.from('submissions').select('id',{count:'exact'}).eq('status','pending');
+  var r2 = await sb.from('reimbursements').select('id',{count:'exact'}).eq('status','pending');
+  var el1 = document.getElementById('dash-pending-ts');
+  var el2 = document.getElementById('dash-pending-reimb');
+  if(el1) el1.textContent = r1.count||0;
+  if(el2) el2.textContent = r2.count||0;
+  // Calendar
+  renderDashboardCalendar();
+}
+
+function renderDashboardCalendar(){
+  var cal = document.getElementById('dashboard-calendar');
+  if(!cal) return;
+  var now = new Date();
+  var year = now.getFullYear();
+  var month = now.getMonth();
+  var monthNames = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+  var dayNames = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+  var today = now.getDate();
+  var firstDay = new Date(year, month, 1).getDay();
+  var daysInMonth = new Date(year, month+1, 0).getDate();
+  // Find current pay period due date
+  var todayStr = now.toISOString().slice(0,10);
+  var curPP = PP.find(function(p){return todayStr>=p.s&&todayStr<=p.e;});
+  // Mark due dates for all pay periods this month
+  var dueDates = {};
+  PP.forEach(function(p){
+    var d = new Date(p.due+', '+year);
+    if(isNaN(d.getTime())) return;
+    if(d.getMonth()===month && d.getFullYear()===year){
+      dueDates[d.getDate()] = p.due;
+    }
+  });
+  var html = '<div style="font-size:18px;font-weight:600;margin-bottom:1rem;">'+monthNames[month]+' '+year+'</div>';
+  html += '<div style="display:grid;grid-template-columns:repeat(7,1fr);gap:4px;text-align:center;">';
+  dayNames.forEach(function(d){
+    html += '<div style="font-size:10px;font-weight:600;text-transform:uppercase;color:var(--t3);padding:4px 0;">'+d+'</div>';
+  });
+  for(var i=0;i<firstDay;i++){
+    html += '<div></div>';
+  }
+  for(var d=1;d<=daysInMonth;d++){
+    var isToday = d===today;
+    var isDue = dueDates[d];
+    var bg = isToday ? 'background:var(--accent);color:#fff;' : isDue ? 'background:var(--amber-lt);color:var(--amber);' : '';
+    var title = isDue ? 'title="Timesheet due"' : '';
+    html += '<div '+title+' style="padding:6px 4px;border-radius:6px;font-size:13px;cursor:default;'+bg+'">'+d+
+      (isDue?'<div style="font-size:8px;font-weight:600;margin-top:1px;">DUE</div>':'')+'</div>';
+  }
+  html += '</div>';
+  if(curPP){
+    html += '<div style="margin-top:1rem;font-size:13px;color:var(--t2);">Current period: <strong style="color:var(--text);">'+curPP.l+'</strong> &nbsp;|&nbsp; Due: <strong style="color:var(--amber);">'+curPP.due+'</strong> &nbsp;|&nbsp; Pay day: <strong style="color:var(--green);">'+curPP.pay+'</strong></div>';
+  }
+  cal.innerHTML = html;
 }
 
 // --- BOOT ---
