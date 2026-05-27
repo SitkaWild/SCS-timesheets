@@ -366,6 +366,15 @@ input[type=number]{width:80px;text-align:right;}
         <p style="font-size:13px;color:var(--t2);margin-bottom:1rem;">Staff who have not submitted for the current pay period.</p>
         <div id="reminder-list"><div class="loading">Loading...</div></div>
       </div>
+      <div style="margin-top:2rem;">
+        <div class="section-head" style="margin-bottom:.75rem;"><h2>My reimbursements</h2></div>
+        <div class="card" style="padding:.75rem 1.5rem;">
+          <table class="htable">
+            <thead><tr><th>Pay period</th><th>Items</th><th>Total</th><th>Status</th><th>Submitted</th></tr></thead>
+            <tbody id="reimb-hist-body"><tr><td colspan="5" class="loading">Loading...</td></tr></tbody>
+          </table>
+        </div>
+      </div>
     </div>
 
     <!-- REIMBURSEMENTS -->
@@ -422,16 +431,6 @@ input[type=number]{width:80px;text-align:right;}
       <div id="reimb-msg" class="flash"></div>
     </div>
 
-    <!-- REIMBURSEMENT HISTORY -->
-    <div id="panel-reimb-history" class="panel">
-      <div class="section-head"><h2>My reimbursements</h2></div>
-      <div class="card" style="padding:.75rem 1.5rem;">
-        <table class="htable">
-          <thead><tr><th>Pay period</th><th>Items</th><th>Total</th><th>Status</th><th>Submitted</th></tr></thead>
-          <tbody id="reimb-hist-body"><tr><td colspan="5" class="loading">Loading...</td></tr></tbody>
-        </table>
-      </div>
-    </div>
 
     <!-- REIMBURSEMENT APPROVALS (admin) -->
     <div id="panel-reimb-approvals" class="panel">
@@ -637,23 +636,20 @@ async function enterApp(){
       (function(tid){btn.addEventListener('click',function(){showPanel(tid,btn);});})(t.id);
       tabs.appendChild(btn);
     });
-    // Reimbursement tabs for all users
-    var reimbTabsData=[
-      {id:'reimb',label:'Reimbursement'},
-      {id:'reimb-history',label:'My reimbursements'}
-    ];
-    if(currentUser.is_admin){
-      reimbTabsData.push({id:'reimb-approvals',label:'Reimb. approvals'});
-    }
-    reimbTabsData.forEach(function(t){
-      var btn=document.createElement('button');
-      btn.className='nav-tab';
-      btn.id='ntab-'+t.id;
-      btn.textContent=t.label;
-      (function(tid){btn.addEventListener('click',function(){showPanel(tid,btn);});})(t.id);
-      tabs.appendChild(btn);
-    });
   }
+  // Reimbursement tabs for all users
+  var reimbTabsData=[{id:'reimb',label:'Reimbursement'}];
+  if(currentUser.is_admin){
+    reimbTabsData.push({id:'reimb-approvals',label:'Reimb. approvals'});
+  }
+  reimbTabsData.forEach(function(t){
+    var btn=document.createElement('button');
+    btn.className='nav-tab';
+    btn.id='ntab-'+t.id;
+    btn.textContent=t.label;
+    (function(tid){btn.addEventListener('click',function(){showPanel(tid,btn);});})(t.id);
+    tabs.appendChild(btn);
+  });
   allCats=await fetchCats();
   allClasses=await fetchClasses();
   initTS();
@@ -673,13 +669,12 @@ function showPanel(id,btn){
   var panel=document.getElementById('panel-'+id);
   if(panel)panel.classList.add('active');
   if(btn)btn.classList.add('active');
-  if(id==='history')renderHistory();
+  if(id==='history'){renderHistory();renderReimbHistory();}
   if(id==='approvals')renderApprovals();
   if(id==='users')renderUsers();
   if(id==='classes'){renderClasses();renderCats();}
   if(id==='notifications'){loadEJSConfig();renderReminderList();loadTpl();}
   if(id==='reimb'){initReimb();setTimeout(function(){initSig('sig-reimb');},100);}
-  if(id==='reimb-history')renderReimbHistory();
   if(id==='reimb-approvals')renderReimbApprovals();
   if(id==='timesheet')setTimeout(function(){initSig('sig-emp');},100);
 }
