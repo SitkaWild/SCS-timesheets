@@ -624,25 +624,23 @@ async function enterApp(){
   showScreen('app');
   document.getElementById('nav-uname').textContent=currentUser.name;
   var tabs=document.getElementById('nav-tabs');
-  ['approvals','users','classes','notifications'].forEach(function(id){
+  // Remove all dynamic tabs first
+  ['approvals','users','classes','notifications','reimb','reimb-approvals'].forEach(function(id){
     var t=document.getElementById('ntab-'+id);if(t)t.remove();
   });
+  // Build tab list based on role
+  var tabList=[{id:'reimb',label:'Reimbursement'}];
   if(currentUser.is_admin){
-    [{id:'approvals',label:'Approvals'},{id:'users',label:'Staff'},{id:'classes',label:'Classes'},{id:'notifications',label:'Notifications'}].forEach(function(t){
-      var btn=document.createElement('button');
-      btn.className='nav-tab';
-      btn.id='ntab-'+t.id;
-      btn.textContent=t.label;
-      (function(tid){btn.addEventListener('click',function(){showPanel(tid,btn);});})(t.id);
-      tabs.appendChild(btn);
-    });
+    tabList=[
+      {id:'approvals',label:'Timesheet approvals'},
+      {id:'reimb-approvals',label:'Reimb. approvals'},
+      {id:'users',label:'Staff'},
+      {id:'classes',label:'Classes'},
+      {id:'notifications',label:'Notifications'},
+      {id:'reimb',label:'Reimbursement'}
+    ];
   }
-  // Reimbursement tabs for all users
-  var reimbTabsData=[{id:'reimb',label:'Reimbursement'}];
-  if(currentUser.is_admin){
-    reimbTabsData.push({id:'reimb-approvals',label:'Reimb. approvals'});
-  }
-  reimbTabsData.forEach(function(t){
+  tabList.forEach(function(t){
     var btn=document.createElement('button');
     btn.className='nav-tab';
     btn.id='ntab-'+t.id;
@@ -1561,15 +1559,27 @@ function addReimbRow(){
   var clsOptions = allClasses.map(function(c){
     return '<option value="'+c.code+'">'+c.code+' - '+c.name+'</option>';
   }).join('');
+  clsOptions += '<option value="other">Other (specify)</option>';
   var row = document.createElement('tr');
   row.id = 'rrow-'+n;
   row.innerHTML =
     '<td style="padding:6px 8px;"><input type="text" id="rdesc-'+n+'" placeholder="Item description" style="font-size:13px;"/></td>'+
     '<td style="padding:6px 8px;"><input type="number" id="rcost-'+n+'" min="0" step="0.01" placeholder="0.00" style="width:90px;font-size:13px;text-align:right;" oninput="updateReimbTotal()"/></td>'+
     '<td style="padding:6px 8px;"><input type="text" id="racct-'+n+'" placeholder="Account" style="font-size:13px;"/></td>'+
-    '<td style="padding:6px 8px;"><select id="rcls-'+n+'" style="font-size:12px;"><option value="">-- class --</option>'+clsOptions+'</select></td>'+
+    '<td style="padding:6px 8px;">'+
+    '<select id="rcls-'+n+'" style="font-size:12px;" onchange="toggleOtherClass('+n+')"><option value="">-- class --</option>'+clsOptions+'</select>'+
+    '<input type="text" id="rclsother-'+n+'" placeholder="Specify class" style="display:none;font-size:12px;margin-top:4px;" />'+
+    '</td>'+
     '<td style="padding:6px 8px;text-align:center;"><button onclick="removeReimbRow('+n+')" style="background:none;border:none;color:var(--red);cursor:pointer;font-size:16px;">x</button></td>';
   document.getElementById('reimb-rows').appendChild(row);
+}
+
+function toggleOtherClass(n){
+  var sel = document.getElementById('rcls-'+n);
+  var other = document.getElementById('rclsother-'+n);
+  if(!sel||!other)return;
+  other.style.display = sel.value==='other' ? 'block' : 'none';
+  if(sel.value!=='other') other.value='';
 }
 
 function removeReimbRow(n){
@@ -1599,11 +1609,16 @@ function getReimbItems(){
     var acct = document.getElementById('racct-'+id);
     var cls = document.getElementById('rcls-'+id);
     if(desc && desc.value.trim()){
+      var clsVal = cls ? cls.value : '';
+      var otherEl = document.getElementById('rclsother-'+id);
+      if(clsVal === 'other' && otherEl && otherEl.value.trim()) {
+        clsVal = otherEl.value.trim();
+      }
       items.push({
         description: desc.value.trim(),
         cost: parseFloat(cost&&cost.value||0)||0,
         account: acct ? acct.value.trim() : '',
-        class_code: cls ? cls.value : ''
+        class_code: clsVal
       });
     }
   });
