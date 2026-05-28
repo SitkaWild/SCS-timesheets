@@ -542,7 +542,34 @@ var PP=[
   {l:'Oct 25 - Nov 7',s:'2026-10-25',e:'2026-11-07',due:'Nov 9',pay:'Nov 13'},
   {l:'Nov 8 - Nov 21',s:'2026-11-08',e:'2026-11-21',due:'Nov 23',pay:'Nov 27'},
   {l:'Nov 22 - Dec 5',s:'2026-11-22',e:'2026-12-05',due:'Dec 7',pay:'Dec 11'},
-  {l:'Dec 6 - Dec 19',s:'2026-12-06',e:'2026-12-19',due:'Dec 21',pay:'Dec 25'}
+  {l:'Dec 6 - Dec 19',s:'2026-12-06',e:'2026-12-19',due:'Dec 21',pay:'Dec 25'},
+  // 2027
+  {l:'Dec 20 - Jan 2',s:'2026-12-20',e:'2027-01-02',due:'Jan 4',pay:'Jan 8'},
+  {l:'Jan 3 - Jan 16',s:'2027-01-03',e:'2027-01-16',due:'Jan 18',pay:'Jan 22'},
+  {l:'Jan 17 - Jan 30',s:'2027-01-17',e:'2027-01-30',due:'Feb 1',pay:'Feb 5'},
+  {l:'Jan 31 - Feb 13',s:'2027-01-31',e:'2027-02-13',due:'Feb 15',pay:'Feb 19'},
+  {l:'Feb 14 - Feb 27',s:'2027-02-14',e:'2027-02-27',due:'Mar 1',pay:'Mar 5'},
+  {l:'Feb 28 - Mar 13',s:'2027-02-28',e:'2027-03-13',due:'Mar 15',pay:'Mar 19'},
+  {l:'Mar 14 - Mar 27',s:'2027-03-14',e:'2027-03-27',due:'Mar 29',pay:'Apr 2'},
+  {l:'Mar 28 - Apr 10',s:'2027-03-28',e:'2027-04-10',due:'Apr 12',pay:'Apr 16'},
+  {l:'Apr 11 - Apr 24',s:'2027-04-11',e:'2027-04-24',due:'Apr 26',pay:'Apr 30'},
+  {l:'Apr 25 - May 8',s:'2027-04-25',e:'2027-05-08',due:'May 10',pay:'May 14'},
+  {l:'May 9 - May 22',s:'2027-05-09',e:'2027-05-22',due:'May 24',pay:'May 28'},
+  {l:'May 23 - Jun 5',s:'2027-05-23',e:'2027-06-05',due:'Jun 7',pay:'Jun 11'},
+  {l:'Jun 6 - Jun 19',s:'2027-06-06',e:'2027-06-19',due:'Jun 21',pay:'Jun 25'},
+  {l:'Jun 20 - Jul 3',s:'2027-06-20',e:'2027-07-03',due:'Jul 5',pay:'Jul 9'},
+  {l:'Jul 4 - Jul 17',s:'2027-07-04',e:'2027-07-17',due:'Jul 19',pay:'Jul 23'},
+  {l:'Jul 18 - Jul 31',s:'2027-07-18',e:'2027-07-31',due:'Aug 2',pay:'Aug 6'},
+  {l:'Aug 1 - Aug 14',s:'2027-08-01',e:'2027-08-14',due:'Aug 16',pay:'Aug 20'},
+  {l:'Aug 15 - Aug 28',s:'2027-08-15',e:'2027-08-28',due:'Aug 30',pay:'Sep 3'},
+  {l:'Aug 29 - Sep 11',s:'2027-08-29',e:'2027-09-11',due:'Sep 13',pay:'Sep 17'},
+  {l:'Sep 12 - Sep 25',s:'2027-09-12',e:'2027-09-25',due:'Sep 27',pay:'Oct 1'},
+  {l:'Sep 26 - Oct 9',s:'2027-09-26',e:'2027-10-09',due:'Oct 11',pay:'Oct 15'},
+  {l:'Oct 10 - Oct 23',s:'2027-10-10',e:'2027-10-23',due:'Oct 25',pay:'Oct 29'},
+  {l:'Oct 24 - Nov 6',s:'2027-10-24',e:'2027-11-06',due:'Nov 8',pay:'Nov 12'},
+  {l:'Nov 7 - Nov 20',s:'2027-11-07',e:'2027-11-20',due:'Nov 22',pay:'Nov 26'},
+  {l:'Nov 21 - Dec 4',s:'2027-11-21',e:'2027-12-04',due:'Dec 6',pay:'Dec 10'},
+  {l:'Dec 5 - Dec 18',s:'2027-12-05',e:'2027-12-18',due:'Dec 20',pay:'Dec 24'}
 ];
 
 // --- SCREENS ---
@@ -2064,48 +2091,102 @@ async function renderDashboard(){
   renderDashboardCalendar();
 }
 
-function renderDashboardCalendar(){
+var calViewYear = null;
+var calViewMonth = null;
+
+function renderDashboardCalendar(year, month){
   var cal = document.getElementById('dashboard-calendar');
   if(!cal) return;
   var now = new Date();
-  var year = now.getFullYear();
-  var month = now.getMonth();
+  if(year===undefined) year = calViewYear !== null ? calViewYear : now.getFullYear();
+  if(month===undefined) month = calViewMonth !== null ? calViewMonth : now.getMonth();
+  calViewYear = year;
+  calViewMonth = month;
+
   var monthNames = ['January','February','March','April','May','June','July','August','September','October','November','December'];
   var dayNames = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
-  var today = now.getDate();
+  var todayD = now.getDate();
+  var todayM = now.getMonth();
+  var todayY = now.getFullYear();
   var firstDay = new Date(year, month, 1).getDay();
   var daysInMonth = new Date(year, month+1, 0).getDate();
-  // Find current pay period due date
-  var todayStr = now.toISOString().slice(0,10);
-  var curPP = PP.find(function(p){return todayStr>=p.s&&todayStr<=p.e;});
-  // Mark due dates for all pay periods this month
+
+  // Build due date and pay date maps for this month/year
   var dueDates = {};
+  var payDates = {};
   PP.forEach(function(p){
-    var d = new Date(p.due+', '+year);
-    if(isNaN(d.getTime())) return;
-    if(d.getMonth()===month && d.getFullYear()===year){
-      dueDates[d.getDate()] = p.due;
+    // Due date
+    var dueStr = p.due + ', ' + year;
+    var dueD = new Date(dueStr);
+    if(!isNaN(dueD.getTime()) && dueD.getMonth()===month && dueD.getFullYear()===year){
+      dueDates[dueD.getDate()] = p;
+    }
+    // Pay date
+    var payStr = p.pay + ', ' + year;
+    var payD = new Date(payStr);
+    if(!isNaN(payD.getTime()) && payD.getMonth()===month && payD.getFullYear()===year){
+      payDates[payD.getDate()] = p;
     }
   });
-  var html = '<div style="font-size:18px;font-weight:600;margin-bottom:1rem;">'+monthNames[month]+' '+year+'</div>';
+
+  // Current pay period
+  var todayStr = now.toISOString().slice(0,10);
+  var curPP = PP.find(function(p){return todayStr>=p.s&&todayStr<=p.e;});
+
+  // Nav arrows - allow back to Jan 2026, forward to Dec 2027
+  var canPrev = !(year===2026 && month===0);
+  var canNext = !(year===2027 && month===11);
+  var prevY = month===0 ? year-1 : year;
+  var prevM = month===0 ? 11 : month-1;
+  var nextY = month===11 ? year+1 : year;
+  var nextM = month===11 ? 0 : month+1;
+
+  var html = '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem;">';
+  html += '<button onclick="renderDashboardCalendar('+prevY+','+prevM+')" '+(!canPrev?'disabled style="opacity:.3;cursor:default;"':'')+
+    ' style="background:none;border:1px solid var(--border);border-radius:var(--r);padding:4px 12px;cursor:pointer;font-size:16px;color:var(--t2);">&lt;</button>';
+  html += '<div style="font-size:18px;font-weight:600;">'+monthNames[month]+' '+year+'</div>';
+  html += '<button onclick="renderDashboardCalendar('+nextY+','+nextM+')" '+(!canNext?'disabled style="opacity:.3;cursor:default;"':'')+
+    ' style="background:none;border:1px solid var(--border);border-radius:var(--r);padding:4px 12px;cursor:pointer;font-size:16px;color:var(--t2);">&gt;</button>';
+  html += '</div>';
+
   html += '<div style="display:grid;grid-template-columns:repeat(7,1fr);gap:4px;text-align:center;">';
   dayNames.forEach(function(d){
     html += '<div style="font-size:10px;font-weight:600;text-transform:uppercase;color:var(--t3);padding:4px 0;">'+d+'</div>';
   });
-  for(var i=0;i<firstDay;i++){
-    html += '<div></div>';
-  }
+  for(var i=0;i<firstDay;i++) html += '<div></div>';
+
   for(var d=1;d<=daysInMonth;d++){
-    var isToday = d===today;
+    var isToday = d===todayD && month===todayM && year===todayY;
     var isDue = dueDates[d];
-    var bg = isToday ? 'background:var(--accent);color:#fff;' : isDue ? 'background:var(--amber-lt);color:var(--amber);' : '';
-    var title = isDue ? 'title="Timesheet due"' : '';
-    html += '<div '+title+' style="padding:6px 4px;border-radius:6px;font-size:13px;cursor:default;'+bg+'">'+d+
-      (isDue?'<div style="font-size:8px;font-weight:600;margin-top:1px;">DUE</div>':'')+'</div>';
+    var isPay = payDates[d];
+    var bg='', label='', titleAttr='';
+    if(isToday){
+      bg='background:var(--accent);color:#fff;';
+    } else if(isDue){
+      bg='background:var(--amber-lt);color:var(--amber);';
+      label='<div style="font-size:8px;font-weight:700;margin-top:1px;">DUE</div>';
+      titleAttr='title="Timesheet & reimbursement due"';
+    } else if(isPay){
+      bg='background:var(--green-lt);color:var(--green);';
+      label='<div style="font-size:8px;font-weight:700;margin-top:1px;">PAY</div>';
+      titleAttr='title="Pay day"';
+    }
+    html += '<div '+titleAttr+' style="padding:6px 2px;border-radius:6px;font-size:13px;cursor:default;'+bg+'">'+d+label+'</div>';
   }
   html += '</div>';
+
+  // Legend
+  html += '<div style="display:flex;gap:16px;margin-top:12px;font-size:12px;flex-wrap:wrap;">';
+  html += '<div style="display:flex;align-items:center;gap:5px;"><div style="width:12px;height:12px;border-radius:3px;background:var(--amber-lt);border:1px solid var(--amber);"></div><span style="color:var(--t2);">Due date</span></div>';
+  html += '<div style="display:flex;align-items:center;gap:5px;"><div style="width:12px;height:12px;border-radius:3px;background:var(--green-lt);border:1px solid var(--green);"></div><span style="color:var(--t2);">Pay day</span></div>';
+  html += '<div style="display:flex;align-items:center;gap:5px;"><div style="width:12px;height:12px;border-radius:3px;background:var(--accent);"></div><span style="color:var(--t2);">Today</span></div>';
+  html += '</div>';
+
   if(curPP){
-    html += '<div style="margin-top:1rem;font-size:13px;color:var(--t2);">Current period: <strong style="color:var(--text);">'+curPP.l+'</strong> &nbsp;|&nbsp; Due: <strong style="color:var(--amber);">'+curPP.due+'</strong> &nbsp;|&nbsp; Pay day: <strong style="color:var(--green);">'+curPP.pay+'</strong></div>';
+    html += '<div style="margin-top:1rem;padding:10px 14px;background:var(--accent-lt);border-radius:var(--r);font-size:13px;color:var(--t2);">'+
+      'Current period: <strong style="color:var(--text);">'+curPP.l+'</strong> &nbsp;|&nbsp; '+
+      'Due: <strong style="color:var(--amber);">'+curPP.due+'</strong> &nbsp;|&nbsp; '+
+      'Pay day: <strong style="color:var(--green);">'+curPP.pay+'</strong></div>';
   }
   cal.innerHTML = html;
 }
