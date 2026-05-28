@@ -86,6 +86,7 @@ input[type=number]{width:80px;text-align:right;}
 .tst tfoot td{padding:12px 10px;border-top:2px solid var(--border);font-size:16px;font-weight:600;text-align:right;}
 .mono{font-family:'DM Mono',monospace;font-size:11px;color:var(--t3);}
 .tst input[type=number]{background:var(--surface);border-color:var(--border-lt);}
+.tst input[type=text]{background:var(--surface);border-color:var(--border-lt);font-size:13px;}
 .period-bar{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;background:var(--accent-lt);border:1px solid var(--border);border-radius:var(--r);padding:12px 16px;margin-bottom:1.25rem;}
 .pi-lbl{font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.08em;color:var(--accent);}
 .pi-val{font-size:14px;font-weight:600;color:var(--text);margin-top:3px;}
@@ -214,7 +215,12 @@ input[type=number]{width:80px;text-align:right;}
         <table class="tst">
           <thead><tr><th>Class / Program</th><th class="r" style="width:70px;">QB code</th><th class="r" style="width:90px;">Hours</th></tr></thead>
           <tbody id="ts-body"></tbody>
-          <tfoot><tr><td colspan="3">Total: <span id="grand-total">0.0</span> hrs</td></tr></tfoot>
+          <tfoot>
+        <tr><td colspan="3" style="padding:8px 10px;">
+          <button class="btn btn-sm" onclick="addCustomTSRow()" style="font-size:12px;">+ Add custom line</button>
+        </td></tr>
+        <tr><td colspan="3" style="font-size:16px;font-weight:600;text-align:right;padding:10px;">Total: <span id="grand-total">0.0</span> hrs</td></tr>
+      </tfoot>
         </table>
       </div>
       <label class="fl" for="ts-notes">Notes</label>
@@ -776,10 +782,68 @@ function updateGrand(){
     var el=document.getElementById('sub-'+cat.replace(/[^a-z]/gi,'_'));
     if(el)el.textContent=sub.toFixed(1);
   });
+  // Add custom rows
+  var tbody=document.getElementById('ts-body');
+  if(tbody) tbody.querySelectorAll('tr[id^="custom-row-"]').forEach(function(tr){
+    var n=tr.id.replace('custom-row-','');
+    var hrs=document.getElementById('ch-'+n);
+    grand+=parseFloat(hrs&&hrs.value||0)||0;
+  });
   document.getElementById('grand-total').textContent=grand.toFixed(1);
 }
+var customRowCount = 0;
+
+function addCustomTSRow(){
+  customRowCount++;
+  var n = customRowCount;
+  var tbody = document.getElementById('ts-body');
+  var tr = document.createElement('tr');
+  tr.id = 'custom-row-'+n;
+  tr.innerHTML =
+    '<td><input type="text" id="cname-'+n+'" placeholder="Project / class name" style="width:100%;"/></td>'+
+    '<td><input type="text" id="ccode-'+n+'" placeholder="QB code" style="width:70px;text-align:right;font-family:monospace;"/></td>'+
+    '<td style="text-align:right;display:flex;align-items:center;gap:4px;justify-content:flex-end;">'+
+      '<input type="number" id="ch-'+n+'" min="0" max="999" step="0.25" placeholder="--" oninput="updateGrand()" style="width:70px;"/>'+
+      '<button onclick="removeCustomTSRow('+n+')" style="background:none;border:none;color:var(--red);cursor:pointer;font-size:14px;padding:0 2px;" title="Remove">x</button>'+
+    '</td>';
+  tbody.appendChild(tr);
+}
+
+function removeCustomTSRow(n){
+  var row = document.getElementById('custom-row-'+n);
+  if(row) row.remove();
+  updateGrand();
+}
+
+function getCustomRows(){
+  var rows = [];
+  var tbody = document.getElementById('ts-body');
+  if(!tbody) return rows;
+  tbody.querySelectorAll('tr[id^="custom-row-"]').forEach(function(tr){
+    var n = tr.id.replace('custom-row-','');
+    var name = document.getElementById('cname-'+n);
+    var code = document.getElementById('ccode-'+n);
+    var hrs = document.getElementById('ch-'+n);
+    var h = parseFloat(hrs&&hrs.value||0)||0;
+    if(name && name.value.trim()){
+      rows.push({
+        id: 'custom-'+n,
+        name: name.value.trim(),
+        code: code ? code.value.trim() : '',
+        category: 'Custom',
+        hours: h
+      });
+    }
+  });
+  return rows;
+}
+
 function clearTS(){
   allClasses.forEach(function(c){var el=document.getElementById('h-'+c.id);if(el)el.value='';});
+  // Remove all custom rows
+  var tbody = document.getElementById('ts-body');
+  if(tbody) tbody.querySelectorAll('tr[id^="custom-row-"]').forEach(function(tr){tr.remove();});
+  customRowCount = 0;
   document.getElementById('ts-notes').value='';
   updateGrand();
 }
@@ -787,6 +851,8 @@ async function submitTS(){
   var idx=+document.getElementById('pay-period').value;
   var p=PP[idx];
   var entries=allClasses.map(function(c){return Object.assign({},c,{hours:getH(c.id)});}).filter(function(e){return e.hours>0;});
+  // Add custom rows
+  getCustomRows().filter(function(r){return r.hours>0;}).forEach(function(r){entries.push(r);});
   if(!entries.length){alert('Please enter hours for at least one class.');return;}
   var total=entries.reduce(function(s,e){return s+e.hours;},0);
   var btn=document.getElementById('submit-btn');
@@ -1521,6 +1587,7 @@ function exportTSCSV(){
   var idx=+document.getElementById('pay-period').value;var p=PP[idx];
   var csv='"Sitka Conservation Society -- Employee Timesheet"\n"Employee","'+currentUser.name+'"\n"Pay Period","'+p.l+'"\n"Due","'+p.due+'"\n"Pay Day","'+p.pay+'"\n\n"Category","Class","QB Code","Hours"\n';
   allClasses.forEach(function(c){var h=getH(c.id);if(h>0)csv+='"'+c.category+'","'+c.name+'","'+c.code+'","'+h+'"\n';});
+  getCustomRows().filter(function(r){return r.hours>0;}).forEach(function(r){csv+='"Custom","'+r.name+'","'+r.code+'","'+r.hours+'"\n';});
   var total=allClasses.reduce(function(s,c){return s+getH(c.id);},0);
   csv+='\n"TOTAL","","","'+total.toFixed(1)+'"';
   var notes=document.getElementById('ts-notes').value;if(notes)csv+='\n"Notes","'+notes+'"';
