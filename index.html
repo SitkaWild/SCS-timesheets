@@ -2112,21 +2112,24 @@ function renderDashboardCalendar(year, month){
   var daysInMonth = new Date(year, month+1, 0).getDate();
 
   // Build due date and pay date maps for this month/year
+  // Use period end date to determine the correct year for due/pay dates
   var dueDates = {};
   var payDates = {};
   PP.forEach(function(p){
-    // Due date
-    var dueStr = p.due + ', ' + year;
-    var dueD = new Date(dueStr);
-    if(!isNaN(dueD.getTime()) && dueD.getMonth()===month && dueD.getFullYear()===year){
-      dueDates[dueD.getDate()] = p;
-    }
-    // Pay date
-    var payStr = p.pay + ', ' + year;
-    var payD = new Date(payStr);
-    if(!isNaN(payD.getTime()) && payD.getMonth()===month && payD.getFullYear()===year){
-      payDates[payD.getDate()] = p;
-    }
+    var endDate = new Date(p.e);
+    var endYear = endDate.getFullYear();
+    // Due date is always 1-4 weeks after period end, so same year or next year
+    // Try endYear first, then endYear+1
+    [endYear, endYear+1].forEach(function(tryYear){
+      var dueD = new Date(p.due + ', ' + tryYear);
+      if(!isNaN(dueD.getTime()) && dueD >= endDate && dueD.getMonth()===month && dueD.getFullYear()===year){
+        dueDates[dueD.getDate()] = p;
+      }
+      var payD = new Date(p.pay + ', ' + tryYear);
+      if(!isNaN(payD.getTime()) && payD >= endDate && payD.getMonth()===month && payD.getFullYear()===year){
+        payDates[payD.getDate()] = p;
+      }
+    });
   });
 
   // Current pay period
