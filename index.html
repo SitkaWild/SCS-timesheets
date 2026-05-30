@@ -985,10 +985,10 @@ async function renderApprovals(){
     }).join('');
     var notesHtml=s.notes?'<div style="padding:8px 10px;font-size:12px;color:var(--t2);border-top:1px solid var(--border-lt);"><strong>Notes:</strong> '+s.notes+'</div>':'';
     var actionBtns=s.status==='pending'?
-      '<button class="btn btn-sm btn-approve">Approve</button> <button class="btn btn-sm btn-reject">Reject</button> <button class="btn btn-sm btn-danger">Delete</button>':
+      '<button class="btn btn-sm btn-approve">Approve</button> <button class="btn btn-sm btn-reject">Reject</button> <button class="btn btn-sm btn-danger">Delete</button> <button class="btn btn-sm">Print</button>':
       s.status==='rejected'&&s.rejection_reason?
-        '<span style="font-size:11px;color:var(--red);" title="'+s.rejection_reason+'">'+s.rejection_reason.slice(0,22)+'...</span> <button class="btn btn-sm btn-danger" style="font-size:11px;">Delete</button>':
-        '<span style="font-size:12px;color:var(--t3);">--</span> <button class="btn btn-sm btn-danger" style="font-size:11px;">Delete</button>';
+        '<span style="font-size:11px;color:var(--red);" title="'+s.rejection_reason+'">'+s.rejection_reason.slice(0,22)+'...</span> <button class="btn btn-sm btn-danger" style="font-size:11px;">Delete</button> <button class="btn btn-sm" style="font-size:11px;">Print</button>':
+        '<button class="btn btn-sm btn-danger" style="font-size:11px;">Delete</button> <button class="btn btn-sm" style="font-size:11px;">Print</button>';
     var wrap=document.createElement('div');
     wrap.style.borderBottom='1px solid var(--border-lt)';
     var headerHtml='<div class="ae" style="cursor:pointer;">'+
@@ -1038,6 +1038,47 @@ async function deleteSubmission(id){
   if(!confirm('Delete this timesheet submission? This cannot be undone.'))return;
   await sb.from('submissions').delete().eq('id',id);
   renderApprovals();
+}
+
+function printSingleTS(s){
+  var rows=s.entries.map(function(e){
+    return '<tr><td style="padding:5px 8px;border-bottom:1px solid #eee;">'+e.category+'</td>'+
+      '<td style="padding:5px 8px;border-bottom:1px solid #eee;">'+e.name+'</td>'+
+      '<td style="padding:5px 8px;font-family:monospace;font-size:11px;color:#999;border-bottom:1px solid #eee;">'+e.code+'</td>'+
+      '<td style="padding:5px 8px;text-align:right;font-weight:600;border-bottom:1px solid #eee;">'+e.hours+'</td></tr>';
+  }).join('');
+  var sc=s.status==='approved'?'#2A5F2A':s.status==='rejected'?'#8B2020':'#7A4A08';
+  var win=window.open('','_blank');
+  if(!win){alert('Please allow popups.');return;}
+  win.document.write('<!DOCTYPE html><html><head><meta charset="UTF-8"/><title>Timesheet - '+s.staff_name+'</title>'+
+    '<style>body{font-family:Arial,sans-serif;font-size:13px;padding:2rem;max-width:700px;margin:0 auto;}'+
+    'table{width:100%;border-collapse:collapse;}th{font-size:9px;text-transform:uppercase;color:#666;text-align:left;padding:6px 8px;border-bottom:1px solid #B8D4B8;}'+
+    '@media print{.noprint{display:none;}}</style></head><body>'+
+    '<div class="noprint" style="margin-bottom:1rem;display:flex;gap:10px;">'+
+      '<button onclick="window.print()" style="padding:8px 16px;background:#2A5F2A;color:#fff;border:none;border-radius:6px;cursor:pointer;">Print</button>'+
+      '<button onclick="window.close()" style="padding:8px 16px;border:1px solid #ccc;border-radius:6px;cursor:pointer;background:none;">Close</button>'+
+    '</div>'+
+    '<h2 style="text-align:center;font-size:18px;margin-bottom:4px;">Sitka Conservation Society</h2>'+
+    '<div style="text-align:center;font-size:11px;color:#666;margin-bottom:1.5rem;text-transform:uppercase;letter-spacing:.08em;">Employee Time Sheet</div>'+
+    '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;background:#EFF5EF;border:1px solid #B8D4B8;border-radius:6px;padding:10px 14px;margin-bottom:1.5rem;">'+
+      '<div><div style="font-size:9px;font-weight:700;text-transform:uppercase;color:#2A5F2A;">Employee</div><div style="font-size:13px;font-weight:700;">'+s.staff_name+'</div></div>'+
+      '<div><div style="font-size:9px;font-weight:700;text-transform:uppercase;color:#2A5F2A;">Pay period</div><div style="font-size:13px;font-weight:700;">'+s.period+'</div></div>'+
+      '<div><div style="font-size:9px;font-weight:700;text-transform:uppercase;color:#2A5F2A;">Status</div><div style="font-size:13px;font-weight:700;color:'+sc+';">'+s.status.charAt(0).toUpperCase()+s.status.slice(1)+'</div></div>'+
+    '</div>'+
+    '<table><thead><tr><th>Category</th><th>Class</th><th>QB Code</th><th style="text-align:right;">Hours</th></tr></thead>'+
+    '<tbody>'+rows+'</tbody>'+
+    '<tfoot><tr><td colspan="3" style="padding:8px;font-weight:700;text-align:right;border-top:2px solid #B8D4B8;">Total hours</td>'+
+    '<td style="padding:8px;font-size:15px;font-weight:700;text-align:right;border-top:2px solid #B8D4B8;">'+parseFloat(s.total_hours).toFixed(1)+'</td></tr></tfoot></table>'+
+    (s.notes?'<div style="background:#f9f9f7;border:1px solid #e0ddd7;border-radius:4px;padding:8px;font-size:11px;margin-top:1rem;"><strong>Notes:</strong> '+s.notes+'</div>':'')+
+    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:24px;margin-top:2rem;">'+
+      '<div><div style="font-size:9px;font-weight:700;text-transform:uppercase;color:#666;margin-bottom:8px;">Employee signature</div>'+
+        '<div style="border-bottom:1px solid #333;height:44px;"></div>'+
+        '<div style="font-size:10px;color:#666;margin-top:4px;">Date: ___________</div></div>'+
+      '<div><div style="font-size:9px;font-weight:700;text-transform:uppercase;color:#666;margin-bottom:8px;">Supervisor signature</div>'+
+        '<div style="border-bottom:1px solid #333;height:44px;"></div>'+
+        '<div style="font-size:10px;color:#666;margin-top:4px;">Date: ___________</div></div>'+
+    '</div></body></html>');
+  win.document.close();
 }
 
 function openApproveModal(id,name){
@@ -1912,10 +1953,10 @@ async function renderReimbApprovals(){
     var wrap = document.createElement('div');
     wrap.style.borderBottom = '1px solid var(--border-lt)';
     var actionBtns = s.status==='pending' ?
-      '<button class="btn btn-sm btn-approve">Approve</button> <button class="btn btn-sm btn-reject">Reject</button> <button class="btn btn-sm btn-danger">Delete</button>' :
+      '<button class="btn btn-sm btn-approve">Approve</button> <button class="btn btn-sm btn-reject">Reject</button> <button class="btn btn-sm btn-danger">Delete</button> <button class="btn btn-sm">Print</button>' :
       s.status==='rejected'&&s.rejection_reason ?
-        '<span style="font-size:11px;color:var(--red);">'+s.rejection_reason.slice(0,20)+'</span> <button class="btn btn-sm btn-danger" style="font-size:11px;">Delete</button>' :
-        '<span style="font-size:12px;color:var(--t3);">--</span> <button class="btn btn-sm btn-danger" style="font-size:11px;">Delete</button>';
+        '<span style="font-size:11px;color:var(--red);">'+s.rejection_reason.slice(0,20)+'</span> <button class="btn btn-sm btn-danger" style="font-size:11px;">Delete</button> <button class="btn btn-sm" style="font-size:11px;">Print</button>' :
+        '<button class="btn btn-sm btn-danger" style="font-size:11px;">Delete</button> <button class="btn btn-sm" style="font-size:11px;">Print</button>';
     var itemRows = s.items.map(function(e){
       return '<tr>'+
         '<td style="padding:5px 10px;font-size:13px;">'+e.description+'</td>'+
@@ -1983,6 +2024,57 @@ async function deleteReimb(id){
   if(!confirm('Delete this reimbursement request? This cannot be undone.'))return;
   await sb.from('reimbursements').delete().eq('id',id);
   renderReimbApprovals();
+}
+
+function printSingleReimb(s){
+  var rows=s.items.map(function(e){
+    return '<tr><td style="padding:5px 8px;border-bottom:1px solid #eee;">'+e.description+'</td>'+
+      '<td style="padding:5px 8px;text-align:right;font-weight:600;border-bottom:1px solid #eee;">$'+parseFloat(e.cost).toFixed(2)+'</td>'+
+      '<td style="padding:5px 8px;border-bottom:1px solid #eee;">'+(e.account||'--')+'</td>'+
+      '<td style="padding:5px 8px;border-bottom:1px solid #eee;">'+(e.class_code||'--')+'</td></tr>';
+  }).join('');
+  var sc=s.status==='approved'?'#2A5F2A':s.status==='rejected'?'#8B2020':'#7A4A08';
+  var receiptImgs='';
+  if(s.receipt_urls&&s.receipt_urls.length){
+    receiptImgs='<div style="margin-top:1.5rem;"><div style="font-size:9px;font-weight:700;text-transform:uppercase;color:#666;margin-bottom:8px;">Receipts</div>'+
+      '<div style="display:flex;flex-wrap:wrap;gap:8px;">';
+    s.receipt_urls.forEach(function(url){
+      receiptImgs+='<img src="'+url+'" style="height:140px;max-width:200px;object-fit:contain;border:1px solid #ccc;border-radius:4px;"/>';
+    });
+    receiptImgs+='</div></div>';
+  }
+  var win=window.open('','_blank');
+  if(!win){alert('Please allow popups.');return;}
+  win.document.write('<!DOCTYPE html><html><head><meta charset="UTF-8"/><title>Reimbursement - '+s.staff_name+'</title>'+
+    '<style>body{font-family:Arial,sans-serif;font-size:13px;padding:2rem;max-width:700px;margin:0 auto;}'+
+    'table{width:100%;border-collapse:collapse;}th{font-size:9px;text-transform:uppercase;color:#666;text-align:left;padding:6px 8px;border-bottom:1px solid #B8D4B8;}'+
+    '@media print{.noprint{display:none;}}</style></head><body>'+
+    '<div class="noprint" style="margin-bottom:1rem;display:flex;gap:10px;">'+
+      '<button onclick="window.print()" style="padding:8px 16px;background:#2A5F2A;color:#fff;border:none;border-radius:6px;cursor:pointer;">Print</button>'+
+      '<button onclick="window.close()" style="padding:8px 16px;border:1px solid #ccc;border-radius:6px;cursor:pointer;background:none;">Close</button>'+
+    '</div>'+
+    '<h2 style="text-align:center;font-size:18px;margin-bottom:4px;">Sitka Conservation Society</h2>'+
+    '<div style="text-align:center;font-size:11px;color:#666;margin-bottom:1.5rem;text-transform:uppercase;letter-spacing:.08em;">Reimbursement Request</div>'+
+    '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;background:#EFF5EF;border:1px solid #B8D4B8;border-radius:6px;padding:10px 14px;margin-bottom:1.5rem;">'+
+      '<div><div style="font-size:9px;font-weight:700;text-transform:uppercase;color:#2A5F2A;">Employee</div><div style="font-size:13px;font-weight:700;">'+s.staff_name+'</div></div>'+
+      '<div><div style="font-size:9px;font-weight:700;text-transform:uppercase;color:#2A5F2A;">Pay period</div><div style="font-size:13px;font-weight:700;">'+s.period+'</div></div>'+
+      '<div><div style="font-size:9px;font-weight:700;text-transform:uppercase;color:#2A5F2A;">Status</div><div style="font-size:13px;font-weight:700;color:'+sc+';">'+s.status.charAt(0).toUpperCase()+s.status.slice(1)+'</div></div>'+
+    '</div>'+
+    '<table><thead><tr><th>Item</th><th style="text-align:right;">Cost</th><th>Account</th><th>Class</th></tr></thead>'+
+    '<tbody>'+rows+'</tbody>'+
+    '<tfoot><tr><td style="padding:8px;font-weight:700;border-top:2px solid #B8D4B8;">TOTAL</td>'+
+    '<td style="padding:8px;font-size:15px;font-weight:700;text-align:right;border-top:2px solid #B8D4B8;">$'+parseFloat(s.total).toFixed(2)+'</td>'+
+    '<td colspan="2" style="border-top:2px solid #B8D4B8;"></td></tr></tfoot></table>'+
+    receiptImgs+
+    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:24px;margin-top:2rem;">'+
+      '<div><div style="font-size:9px;font-weight:700;text-transform:uppercase;color:#666;margin-bottom:8px;">Employee signature</div>'+
+        '<div style="border-bottom:1px solid #333;height:44px;"></div>'+
+        '<div style="font-size:10px;color:#666;margin-top:4px;">Date: ___________</div></div>'+
+      '<div><div style="font-size:9px;font-weight:700;text-transform:uppercase;color:#666;margin-bottom:8px;">Executive Director</div>'+
+        '<div style="border-bottom:1px solid #333;height:44px;"></div>'+
+        '<div style="font-size:10px;color:#666;margin-top:4px;">Date: ___________</div></div>'+
+    '</div></body></html>');
+  win.document.close();
 }
 
 async function approveReimb(id,sub){
