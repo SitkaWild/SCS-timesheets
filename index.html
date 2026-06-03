@@ -1089,13 +1089,20 @@ async function renderHistory(){
       rejRow+='<strong>Rejected:</strong> '+(s.rejection_reason||'No reason given');
       rejRow+=' &nbsp;<button class="btn btn-sm btn-primary" onclick="resubmit(this.dataset.id)" data-id="'+s.id+'" style="margin-left:8px;font-size:11px;padding:3px 10px;">Resubmit</button></td></tr>';
     }
+    var pendingRow='';
+    if(s.status==='pending'){
+      pendingRow='<tr style="background:var(--amber-lt)"><td colspan="5" style="padding:8px 10px;font-size:12px;color:var(--amber);display:flex;align-items:center;gap:10px;">';
+      pendingRow+='<span>Awaiting approval</span>';
+      pendingRow+='<button class="btn btn-sm" onclick="cancelAndEditTS(this.dataset.id)" data-id="'+s.id+'" style="font-size:11px;padding:3px 10px;margin-left:auto;">Cancel &amp; edit</button>';
+      pendingRow+='</td></tr>';
+    }
     var row='<tr>';
     row+='<td><strong>'+s.period+'</strong><div class="sub-detail">Due '+s.period_due+' / Pay '+s.period_payday+'</div></td>';
     row+='<td style="font-size:12px;">'+detail+'</td>';
     row+='<td style="font-weight:600;">'+parseFloat(s.total_hours).toFixed(1)+'</td>';
     row+='<td><span class="badge badge-'+s.status+'">'+s.status+'</span></td>';
     row+='<td style="font-size:12px;color:var(--t2);">'+(s.notes||'--')+'</td></tr>';
-    return row+rejRow;
+    return row+rejRow+pendingRow;
   }).join('');
 }
 async function resubmit(id){
@@ -2116,11 +2123,15 @@ async function renderReimbHistory(){
     if(s.status==='rejected'&&s.rejection_reason){
       statusCell += '<div style="font-size:11px;color:var(--red);margin-top:3px;">'+s.rejection_reason+'</div>';
     }
+    var cancelReimbBtn='';
+    if(s.status==='pending'){
+      cancelReimbBtn='<button class="btn btn-sm" onclick="cancelAndEditReimb(this.dataset.id)" data-id="'+s.id+'" style="font-size:11px;margin-top:4px;">Cancel &amp; edit</button>';
+    }
     tr.innerHTML =
       '<td><strong>'+s.period+'</strong></td>'+
       '<td style="font-size:12px;">'+itemSummary.slice(0,60)+(itemSummary.length>60?'...':'')+'</td>'+
       '<td style="font-weight:600;">$'+parseFloat(s.total).toFixed(2)+'</td>'+
-      '<td>'+statusCell+'</td>'+
+      '<td>'+statusCell+cancelReimbBtn+'</td>'+
       '<td style="font-size:12px;color:var(--t2);">'+(s.submitted_at?s.submitted_at.slice(0,10):'--')+'</td>';
     frag.appendChild(tr);
   });
@@ -2485,6 +2496,90 @@ function renderDashboardCalendar(year, month){
       'Pay day: <strong style="color:var(--green);">'+curPP.pay+'</strong></div>';
   }
   cal.innerHTML = html;
+}
+
+// --- CANCEL & EDIT ---
+async function cancelAndEditTS(id){
+  if(!confirm('Cancel this submission and return it to draft so you can edit and resubmit?'))return;
+  // Get the submission data
+  var r = await sb.from('submissions').select('*').eq('id',id).single();
+  if(!r.data){alert('Could not find submission.');return;}
+  var s = r.data;
+  // Delete the submission
+  await sb.from('submissions').delete().eq('id',id);
+  // Switch to timesheet tab and pre-fill
+  showPanel('timesheet', document.getElementById('ntab-timesheet'));
+  setTimeout(function(){
+    // Set pay period
+    var pIdx = PP.findIndex(function(p){return p.l===s.period;});
+    if(pIdx>=0){
+      document.getElementById('pay-period').value = pIdx;
+      updatePeriodInfo();
+    }
+    setTimeout(function(){
+      // Fill in the grid
+      var days = getPPDays(+document.getElementById('pay-period').value);
+      s.entries.forEach(function(e){
+        if(e.dayHours){
+          e.dayHours.forEach(function(dh, di){
+            var el = document.getElementById('g-'+e.id+'-'+di);
+            if(el && dh.hours) el.value = dh.hours;
+          });
+        } else {
+          // Legacy: flat hours - spread across first day as fallback
+          var el = document.getElementById('g-'+e.id+'-0');
+          if(el && e.hours) el.value = e.hours;
+        }
+      });
+      if(s.notes) document.getElementById('ts-notes').value = s.notes;
+      updateGrid();
+      var msg = document.getElementById('ts-msg');
+      msg.textContent = 'Submission cancelled and returned to draft. Make your changes and resubmit.';
+      msg.className = 'flash ok';
+      msg.style.display = 'flex';
+    }, 300);
+  }, 200);
+  renderHistory();
+}
+
+async function cancelAndEditReimb(id){
+  if(!confirm('Cancel this reimbursement and return it to draft so you can edit and resubmit?'))return;
+  var r = await sb.from('reimbursements').select('*').eq('id',id).single();
+  if(!r.data){alert('Could not find submission.');return;}
+  var s = r.data;
+  await sb.from('reimbursements').delete().eq('id',id);
+  // Switch to reimbursement tab and pre-fill
+  showPanel('reimb', document.getElementById('ntab-reimb'));
+  setTimeout(function(){
+    var pIdx = PP.findIndex(function(p){return p.l===s.period;});
+    if(pIdx>=0) document.getElementById('reimb-period').value = pIdx;
+    // Clear existing rows and rebuild from saved items
+    document.getElementById('reimb-rows').innerHTML = '';
+    reimbRowCount = 0;
+    (s.items||[]).forEach(function(item){
+      addReimbRow();
+      var n = reimbRowCount;
+      var desc = document.getElementById('rdesc-'+n);
+      var cost = document.getElementById('rcost-'+n);
+      var acct = document.getElementById('racct-'+n);
+      var cls = document.getElementById('rcls-'+n);
+      if(desc) desc.value = item.description||'';
+      if(cost) cost.value = item.cost||'';
+      if(acct) acct.value = item.account||'';
+      if(cls){
+        // Check if class code matches a known class
+        var match = allClasses.find(function(c){return c.code===item.class_code;});
+        if(match) cls.value = item.class_code;
+        else if(item.class_code){cls.value='other';toggleOtherClass(n);var o=document.getElementById('rclsother-'+n);if(o)o.value=item.class_code;}
+      }
+    });
+    updateReimbTotal();
+    var msg = document.getElementById('reimb-msg');
+    msg.textContent = 'Reimbursement cancelled and returned to draft. Make your changes and resubmit.';
+    msg.className = 'flash ok';
+    msg.style.display = 'flex';
+  }, 300);
+  renderReimbHistory();
 }
 
 // --- SUCCESS MODAL ---
