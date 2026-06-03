@@ -252,6 +252,7 @@ input[type=number]{width:80px;text-align:right;}
       </div>
       <div class="btn-row">
         <button class="btn btn-primary" id="submit-btn" onclick="submitTS()">Submit for approval</button>
+        <button class="btn" onclick="saveTSDraft()" style="color:var(--accent);border-color:var(--accent);">Save &amp; return later</button>
         <button class="btn" onclick="exportTSCSV()">Export CSV</button>
         <button class="btn" onclick="exportTSPDF()">Export PDF</button>
         <button class="btn" onclick="clearTS()">Clear</button>
@@ -464,6 +465,7 @@ input[type=number]{width:80px;text-align:right;}
       </div>
       <div class="btn-row">
         <button class="btn btn-primary" id="reimb-submit-btn" onclick="submitReimb()">Submit for approval</button>
+        <button class="btn" onclick="saveReimbDraft()" style="color:var(--accent);border-color:var(--accent);">Save &amp; return later</button>
         <button class="btn" onclick="clearReimb()">Clear</button>
       </div>
       <div id="reimb-msg" class="flash"></div>
@@ -495,6 +497,23 @@ input[type=number]{width:80px;text-align:right;}
 </div>
 
   </div>
+</div>
+
+<div id="success-modal" class="sig-overlay" onclick="closeSuccessModal()">
+  <div style="background:var(--surface);border-radius:var(--rl);padding:2.5rem 2rem;width:100%;max-width:400px;text-align:center;" onclick="event.stopPropagation()">
+    <div style="width:60px;height:60px;border-radius:50%;background:var(--green-lt);display:flex;align-items:center;justify-content:center;margin:0 auto 1.25rem;">
+      <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#2A5F2A" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+        <polyline points="20 6 9 17 4 12"></polyline>
+      </svg>
+    </div>
+    <div id="success-title" style="font-family:'DM Serif Display',serif;font-size:22px;margin-bottom:.5rem;">Submitted!</div>
+    <div id="success-msg" style="font-size:14px;color:var(--t2);line-height:1.6;margin-bottom:1.5rem;"></div>
+    <button class="btn btn-primary" onclick="closeSuccessModal()" style="width:100%;justify-content:center;">Done</button>
+  </div>
+</div>
+
+<div id="draft-saved-toast" style="display:none;position:fixed;bottom:2rem;left:50%;transform:translateX(-50%);background:var(--accent);color:#fff;padding:12px 24px;border-radius:var(--r);font-size:14px;font-weight:500;z-index:2000;box-shadow:0 4px 12px rgba(0,0,0,.2);">
+  Draft saved! Your progress is stored.
 </div>
 
 <div id="sig-modal" class="sig-overlay">
@@ -752,9 +771,26 @@ function showPanel(id,btn){
   if(id==='users')renderUsers();
   if(id==='classes'){renderClasses();renderCats();}
   if(id==='notifications'){loadEJSConfig();renderReminderList();loadTpl();}
-  if(id==='reimb'){initReimb();setTimeout(function(){initSig('sig-reimb');},100);}
+  if(id==='reimb'){
+    initReimb();
+    setTimeout(function(){
+      initSig('sig-reimb');
+      if(loadReimbDraft()){
+        var msg=document.getElementById('reimb-msg');
+        if(msg){msg.textContent='Draft restored! Review and submit when ready.';msg.className='flash ok';msg.style.display='flex';setTimeout(function(){msg.style.display='none';},4000);}
+      }
+    },200);
+  }
   if(id==='reimb-approvals')renderReimbApprovals();
-  if(id==='timesheet')setTimeout(function(){initSig('sig-emp');},100);
+  if(id==='timesheet'){
+    setTimeout(function(){
+      initSig('sig-emp');
+      if(loadTSDraft()){
+        var msg=document.getElementById('ts-msg');
+        if(msg){msg.textContent='Draft restored! Review and submit when ready.';msg.className='flash ok';msg.style.display='flex';setTimeout(function(){msg.style.display='none';},4000);}
+      }
+    },200);
+  }
 }
 
 // --- DATA ---
@@ -1032,9 +1068,10 @@ async function submitTS(){
   });
   btn.disabled=false;btn.textContent='Submit for approval';
   if(r.error){flash(document.getElementById('ts-msg'),'Error: '+r.error.message,'err');return;}
-  flash(document.getElementById('ts-msg'),'Submitted successfully! Awaiting approval.','ok');
-  sendAdminAlert({staff_name:currentUser.name,period:p.l,period_payday:p.pay,total_hours:total});
+  clearTSDraft();
   clearTS();
+  showSuccess('Timesheet submitted!', 'Your timesheet for '+p.l+' has been submitted and is awaiting approval. You will receive an email when it is reviewed.');
+  sendAdminAlert({staff_name:currentUser.name,period:p.l,period_payday:p.pay,total_hours:total});
 }
 
 // --- HISTORY ---
@@ -2039,7 +2076,9 @@ async function submitReimb(){
     await sb.from('reimbursements').update({receipt_urls:urls}).eq('id',reimbId);
   }
   btn.disabled = false; btn.textContent = 'Submit for approval';
-  flash(document.getElementById('reimb-msg'),'Submitted successfully! Awaiting approval.','ok');
+  clearReimbDraft();
+  clearReimb();
+  showSuccess('Reimbursement submitted!', 'Your reimbursement request for '+p.l+' ($'+total.toFixed(2)+') has been submitted and is awaiting approval.');
   // Notify admin
   var cfg = getEJSConfig();
   if(cfg.adminEmail){
@@ -2446,6 +2485,163 @@ function renderDashboardCalendar(year, month){
       'Pay day: <strong style="color:var(--green);">'+curPP.pay+'</strong></div>';
   }
   cal.innerHTML = html;
+}
+
+// --- SUCCESS MODAL ---
+function showSuccess(title, msg){
+  document.getElementById('success-title').textContent = title;
+  document.getElementById('success-msg').textContent = msg;
+  document.getElementById('success-modal').classList.add('open');
+}
+function closeSuccessModal(){
+  document.getElementById('success-modal').classList.remove('open');
+}
+
+// --- DRAFT TOAST ---
+function showDraftToast(){
+  var toast = document.getElementById('draft-saved-toast');
+  toast.style.display = 'block';
+  setTimeout(function(){toast.style.display='none';}, 3000);
+}
+
+// --- TIMESHEET DRAFTS ---
+function getTSDraftKey(){
+  return 'scs_draft_ts_'+currentUser.id;
+}
+
+function saveTSDraft(){
+  var ppIdx = +document.getElementById('pay-period').value;
+  var days = getPPDays(ppIdx);
+  var data = {ppIdx: ppIdx, cells: {}, custom: [], notes: ''};
+  // Save all class cell values
+  allClasses.forEach(function(c){
+    days.forEach(function(d, di){
+      var el = document.getElementById('g-'+c.id+'-'+di);
+      var v = el ? el.value : '';
+      if(v) data.cells[c.id+'-'+di] = v;
+    });
+  });
+  // Save custom rows
+  document.querySelectorAll('tr[id^="custom-row-"]').forEach(function(tr){
+    var n = tr.id.replace('custom-row-','');
+    var name = document.getElementById('cname-'+n);
+    var code = document.getElementById('ccode-'+n);
+    var dayVals = [];
+    days.forEach(function(d, di){
+      var el = document.getElementById('cg-'+n+'-'+di);
+      dayVals.push(el ? el.value : '');
+    });
+    data.custom.push({name: name?name.value:'', code: code?code.value:'', days: dayVals});
+  });
+  data.notes = document.getElementById('ts-notes').value || '';
+  localStorage.setItem(getTSDraftKey(), JSON.stringify(data));
+  showDraftToast();
+}
+
+function loadTSDraft(){
+  var key = getTSDraftKey();
+  var saved = localStorage.getItem(key);
+  if(!saved) return false;
+  try {
+    var data = JSON.parse(saved);
+    // Set pay period
+    var sel = document.getElementById('pay-period');
+    if(sel && data.ppIdx !== undefined){
+      sel.value = data.ppIdx;
+      updatePeriodInfo();
+    }
+    // Fill cells after grid is built
+    setTimeout(function(){
+      Object.keys(data.cells||{}).forEach(function(k){
+        var el = document.getElementById('g-'+k);
+        if(el) el.value = data.cells[k];
+      });
+      // Restore custom rows
+      (data.custom||[]).forEach(function(row){
+        addCustomTSRow();
+        var n = customRowCount;
+        var nameEl = document.getElementById('cname-'+n);
+        var codeEl = document.getElementById('ccode-'+n);
+        if(nameEl) nameEl.value = row.name||'';
+        if(codeEl) codeEl.value = row.code||'';
+        (row.days||[]).forEach(function(v, di){
+          var el = document.getElementById('cg-'+n+'-'+di);
+          if(el) el.value = v;
+        });
+      });
+      // Notes
+      var notesEl = document.getElementById('ts-notes');
+      if(notesEl) notesEl.value = data.notes||'';
+      updateGrid();
+    }, 300);
+    return true;
+  } catch(e){ return false; }
+}
+
+function clearTSDraft(){
+  localStorage.removeItem(getTSDraftKey());
+}
+
+// --- REIMBURSEMENT DRAFTS ---
+function getReimbDraftKey(){
+  return 'scs_draft_reimb_'+currentUser.id;
+}
+
+function saveReimbDraft(){
+  var ppIdx = +document.getElementById('reimb-period').value;
+  var rows = [];
+  document.getElementById('reimb-rows').querySelectorAll('tr').forEach(function(tr){
+    var id = tr.id.replace('rrow-','');
+    var desc = document.getElementById('rdesc-'+id);
+    var cost = document.getElementById('rcost-'+id);
+    var acct = document.getElementById('racct-'+id);
+    var cls = document.getElementById('rcls-'+id);
+    var other = document.getElementById('rclsother-'+id);
+    rows.push({
+      desc: desc?desc.value:'',
+      cost: cost?cost.value:'',
+      acct: acct?acct.value:'',
+      cls: cls?cls.value:'',
+      other: other?other.value:''
+    });
+  });
+  var data = {ppIdx: ppIdx, rows: rows};
+  localStorage.setItem(getReimbDraftKey(), JSON.stringify(data));
+  showDraftToast();
+}
+
+function loadReimbDraft(){
+  var key = getReimbDraftKey();
+  var saved = localStorage.getItem(key);
+  if(!saved) return false;
+  try {
+    var data = JSON.parse(saved);
+    var sel = document.getElementById('reimb-period');
+    if(sel && data.ppIdx !== undefined) sel.value = data.ppIdx;
+    // Clear existing rows and rebuild
+    document.getElementById('reimb-rows').innerHTML = '';
+    reimbRowCount = 0;
+    (data.rows||[]).forEach(function(row){
+      addReimbRow();
+      var n = reimbRowCount;
+      var desc = document.getElementById('rdesc-'+n);
+      var cost = document.getElementById('rcost-'+n);
+      var acct = document.getElementById('racct-'+n);
+      var cls = document.getElementById('rcls-'+n);
+      var other = document.getElementById('rclsother-'+n);
+      if(desc) desc.value = row.desc||'';
+      if(cost) cost.value = row.cost||'';
+      if(acct) acct.value = row.acct||'';
+      if(cls){ cls.value = row.cls||''; toggleOtherClass(n); }
+      if(other) other.value = row.other||'';
+    });
+    updateReimbTotal();
+    return true;
+  } catch(e){ return false; }
+}
+
+function clearReimbDraft(){
+  localStorage.removeItem(getReimbDraftKey());
 }
 
 // --- BOOT ---
