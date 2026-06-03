@@ -89,7 +89,7 @@ input[type=number]{width:80px;text-align:right;}
 .tst input[type=text]{background:var(--surface);border-color:var(--border-lt);font-size:13px;}
 /* Grid timesheet */
 .tsg th{font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--t3);padding:6px 4px;text-align:center;border-bottom:2px solid var(--border);border-right:1px solid var(--border-lt);white-space:nowrap;}
-.tsg th.cls-col{text-align:left;padding-left:8px;min-width:140px;}
+.tsg th.cls-col{text-align:left;padding-left:8px;min-width:120px;max-width:150px;}
 .tsg th.code-col{min-width:48px;}
 .tsg th.total-col{min-width:50px;border-left:2px solid var(--border);color:var(--accent);}
 .tsg td{padding:2px 3px;border-bottom:1px solid var(--border-lt);border-right:1px solid var(--border-lt);vertical-align:middle;}
@@ -99,7 +99,7 @@ input[type=number]{width:80px;text-align:right;}
 .tsg td.day-total{font-weight:700;text-align:center;padding:4px 3px;font-size:12px;background:var(--bg);color:var(--text);border-top:2px solid var(--border);}
 .tsg td.grand-total-cell{font-weight:700;font-size:14px;text-align:right;padding:4px 8px;border-left:2px solid var(--border);border-top:2px solid var(--border);background:var(--accent-lt);color:var(--accent);}
 .tsg .sec-row td{background:var(--bg);font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--t2);padding:5px 8px;border-top:1px solid var(--border);}
-.tsg input[type=number]{width:40px;border:1px solid var(--border-lt);border-radius:4px;padding:3px 2px;text-align:center;font-size:12px;background:var(--surface);font-family:'DM Sans',sans-serif;}
+.tsg input[type=number]{width:34px;border:1px solid var(--border-lt);border-radius:4px;padding:2px 1px;text-align:center;font-size:11px;background:var(--surface);font-family:'DM Sans',sans-serif;}
 .tsg input[type=number]:focus{border-color:var(--accent);outline:none;}
 .tsg input[type=text]{border:1px solid var(--border-lt);border-radius:4px;padding:3px 5px;font-size:11px;background:var(--surface);}
 .period-bar{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;background:var(--accent-lt);border:1px solid var(--border);border-radius:var(--r);padding:12px 16px;margin-bottom:1.25rem;}
@@ -822,9 +822,9 @@ function buildTSGrid(){
   headHtml+='<th class="code-col">QB</th>';
   days.forEach(function(d){
     var isWeekend=d.getDay()===0||d.getDay()===6;
-    headHtml+='<th style="min-width:42px;'+(isWeekend?'color:var(--t3);':'')+'">'
-      +dayNames[d.getDay()]+'<br/>'
-      +'<span style="font-size:11px;font-weight:500;color:var(--t2);">'+months[d.getMonth()]+' '+d.getDate()+'</span>'
+    headHtml+='<th style="min-width:34px;max-width:38px;padding:4px 2px;'+(isWeekend?'color:var(--t3);':'')+'">'
+      +'<div style="font-size:9px;">'+dayNames[d.getDay()].slice(0,2)+'</div>'
+      +'<div style="font-size:9px;font-weight:500;color:var(--t2);">'+d.getDate()+'</div>'
       +'</th>';
   });
   headHtml+='<th class="total-col">Total</th>';
@@ -845,7 +845,7 @@ function buildTSGrid(){
       bodyHtml+='<td class="cls-code">'+c.code+'</td>';
       days.forEach(function(d,di){
         var isWeekend=d.getDay()===0||d.getDay()===6;
-        bodyHtml+='<td style="'+(isWeekend?'background:#f8f8f6;':'')+'"><input type="number" class="tsg" id="g-'+c.id+'-'+di+'" min="0" max="24" step="0.25" placeholder="" oninput="updateGrid()"/></td>';
+        bodyHtml+='<td style="padding:2px;'+(isWeekend?'background:#f8f8f6;':'')+'"><input type="number" class="tsg" id="g-'+c.id+'-'+di+'" min="0" max="24" step="0.25" placeholder="" oninput="updateGrid()" style="width:34px;"/></td>';
       });
       bodyHtml+='<td class="row-total" id="rt-'+c.id+'">0.0</td>';
       bodyHtml+='</tr>';
@@ -939,7 +939,7 @@ function addCustomTSRow(){
     '<td class="cls-code"><input type="text" id="ccode-'+n+'" placeholder="QB" style="width:38px;font-size:10px;text-align:center;font-family:monospace;"/></td>';
   days.forEach(function(d,di){
     var isWeekend=d.getDay()===0||d.getDay()===6;
-    html+='<td style="'+(isWeekend?'background:#f8f8f6;':'')+'"><input type="number" class="tsg" id="cg-'+n+'-'+di+'" min="0" max="24" step="0.25" oninput="updateGrid()"/></td>';
+    html+='<td style="padding:2px;'+(isWeekend?'background:#f8f8f6;':'')+'"><input type="number" class="tsg" id="cg-'+n+'-'+di+'" min="0" max="24" step="0.25" oninput="updateGrid()" style="width:34px;"/></td>';
   });
   html+='<td class="row-total" id="crt-'+n+'">0.0</td>';
   tr.innerHTML=html;
