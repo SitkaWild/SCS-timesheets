@@ -87,6 +87,21 @@ input[type=number]{width:80px;text-align:right;}
 .mono{font-family:'DM Mono',monospace;font-size:11px;color:var(--t3);}
 .tst input[type=number]{background:var(--surface);border-color:var(--border-lt);}
 .tst input[type=text]{background:var(--surface);border-color:var(--border-lt);font-size:13px;}
+/* Grid timesheet */
+.tsg th{font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--t3);padding:6px 4px;text-align:center;border-bottom:2px solid var(--border);border-right:1px solid var(--border-lt);white-space:nowrap;}
+.tsg th.cls-col{text-align:left;padding-left:8px;min-width:140px;}
+.tsg th.code-col{min-width:48px;}
+.tsg th.total-col{min-width:50px;border-left:2px solid var(--border);color:var(--accent);}
+.tsg td{padding:2px 3px;border-bottom:1px solid var(--border-lt);border-right:1px solid var(--border-lt);vertical-align:middle;}
+.tsg td.cls-name{font-size:12px;padding:4px 8px;white-space:nowrap;}
+.tsg td.cls-code{font-family:'DM Mono',monospace;font-size:10px;color:var(--t3);text-align:center;}
+.tsg td.row-total{font-weight:700;text-align:right;padding:4px 8px;border-left:2px solid var(--border);font-size:12px;color:var(--accent);background:var(--accent-lt);}
+.tsg td.day-total{font-weight:700;text-align:center;padding:4px 3px;font-size:12px;background:var(--bg);color:var(--text);border-top:2px solid var(--border);}
+.tsg td.grand-total-cell{font-weight:700;font-size:14px;text-align:right;padding:4px 8px;border-left:2px solid var(--border);border-top:2px solid var(--border);background:var(--accent-lt);color:var(--accent);}
+.tsg .sec-row td{background:var(--bg);font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--t2);padding:5px 8px;border-top:1px solid var(--border);}
+.tsg input[type=number]{width:40px;border:1px solid var(--border-lt);border-radius:4px;padding:3px 2px;text-align:center;font-size:12px;background:var(--surface);font-family:'DM Sans',sans-serif;}
+.tsg input[type=number]:focus{border-color:var(--accent);outline:none;}
+.tsg input[type=text]{border:1px solid var(--border-lt);border-radius:4px;padding:3px 5px;font-size:11px;background:var(--surface);}
 .period-bar{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;background:var(--accent-lt);border:1px solid var(--border);border-radius:var(--r);padding:12px 16px;margin-bottom:1.25rem;}
 .pi-lbl{font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.08em;color:var(--accent);}
 .pi-val{font-size:14px;font-weight:600;color:var(--text);margin-top:3px;}
@@ -212,21 +227,19 @@ input[type=number]{width:80px;text-align:right;}
         <div><div class="pi-lbl">Timesheet due</div><div class="pi-val due" id="pi-due">-</div></div>
         <div><div class="pi-lbl">Pay day</div><div class="pi-val" id="pi-pay">-</div></div>
       </div>
-      <div class="card" style="padding:0;">
-        <table class="tst">
-          <thead><tr><th>Class / Program</th><th class="r" style="width:70px;">QB code</th><th class="r" style="width:90px;">Hours</th></tr></thead>
-          <tbody id="ts-body"></tbody>
-          <tfoot>
-        <tr><td colspan="3" style="padding:8px 10px;">
-          <button class="btn btn-sm" onclick="addCustomTSRow()" style="font-size:12px;">+ Add custom line</button>
-        </td></tr>
-        <tr><td colspan="3" style="font-size:16px;font-weight:600;text-align:right;padding:10px;">Total: <span id="grand-total">0.0</span> hrs</td></tr>
-      </tfoot>
+      <div style="overflow-x:auto;margin-bottom:1.25rem;">
+        <table id="ts-grid" style="border-collapse:collapse;font-size:12px;min-width:600px;width:100%;background:var(--surface);border:1px solid var(--border);border-radius:var(--rl);">
+          <thead id="ts-grid-head"></thead>
+          <tbody id="ts-grid-body"></tbody>
+          <tfoot id="ts-grid-foot"></tfoot>
         </table>
       </div>
+      <div style="margin-bottom:1rem;">
+        <button class="btn btn-sm" onclick="addCustomTSRow()">+ Add custom line</button>
+      </div>
       <label class="fl" for="ts-notes">Notes</label>
-      <textarea id="ts-notes" rows="2" placeholder="Optional notes..."></textarea>
-      <div style="margin-top:1rem;">
+      <textarea id="ts-notes" rows="2" placeholder="Optional notes..." style="margin-bottom:1rem;"></textarea>
+      <div style="margin-top:.5rem;">
         <label class="fl">Employee signature</label>
         <div style="position:relative;border:1px solid var(--border);border-radius:var(--r);background:var(--surface);height:80px;cursor:crosshair;">
           <canvas id="sig-emp" style="width:100%;height:100%;display:block;border-radius:var(--r);touch-action:none;"></canvas>
@@ -768,98 +781,201 @@ function initTS(){
   var best=0;
   PP.forEach(function(p,i){if(today>=p.s&&today<=p.e)best=i;});
   sel.innerHTML=PP.map(function(p,i){return '<option value="'+i+'">'+p.l+'</option>';}).join('');
-  sel.value=best;updatePeriodInfo();buildTSTable();
+  sel.value=best;updatePeriodInfo();buildTSGrid();
 }
 function updatePeriodInfo(){
   var p=PP[+document.getElementById('pay-period').value];
   document.getElementById('pi-range').textContent=p.l;
   document.getElementById('pi-due').textContent=p.due;
   document.getElementById('pi-pay').textContent=p.pay;
-  var diff=Math.ceil((new Date(p.due+', 2026')-new Date())/86400000);
+  var dueDate=new Date(p.due+', '+(new Date(p.e).getFullYear()));
+  var diff=Math.ceil((dueDate-new Date())/86400000);
   var bar=document.getElementById('warn-bar');
   if(diff>=0&&diff<=3){
     bar.style.display='flex';
     document.getElementById('warn-text').textContent=diff===0?'Timesheet due TODAY ('+p.due+') -- submit now!':'Due in '+diff+' day'+(diff===1?'':'s')+' ('+p.due+').';
   } else bar.style.display='none';
+  buildTSGrid();
 }
-function buildTSTable(){
+function getPPDays(ppIdx){
+  var p=PP[ppIdx];
+  var days=[];
+  var cur=new Date(p.s+'T12:00:00');
+  var end=new Date(p.e+'T12:00:00');
+  while(cur<=end){
+    days.push(new Date(cur));
+    cur.setDate(cur.getDate()+1);
+  }
+  return days;
+}
+
+function buildTSGrid(){
+  var ppIdx=+document.getElementById('pay-period').value;
+  var days=getPPDays(ppIdx);
   var cats=allCats.length?allCats:['General','Projects/Classes','Leave'];
-  var html='';
+  var dayNames=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+  var months=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+
+  // Build header
+  var headHtml='<tr>';
+  headHtml+='<th class="cls-col" style="text-align:left;">Class / Program</th>';
+  headHtml+='<th class="code-col">QB</th>';
+  days.forEach(function(d){
+    var isWeekend=d.getDay()===0||d.getDay()===6;
+    headHtml+='<th style="min-width:42px;'+(isWeekend?'color:var(--t3);':'')+'">'
+      +dayNames[d.getDay()]+'<br/>'
+      +'<span style="font-size:11px;font-weight:500;color:var(--t2);">'+months[d.getMonth()]+' '+d.getDate()+'</span>'
+      +'</th>';
+  });
+  headHtml+='<th class="total-col">Total</th>';
+  headHtml+='</tr>';
+  document.getElementById('ts-grid-head').className='tsg';
+  document.getElementById('ts-grid-head').innerHTML=headHtml;
+
+  // Build body
+  var bodyHtml='';
   cats.forEach(function(cat){
     var rows=allClasses.filter(function(c){return c.category===cat;});
     if(!rows.length)return;
-    html+='<tr class="sec"><td colspan="3">'+cat+'</td></tr>';
+    // Section header row
+    bodyHtml+='<tr class="sec-row"><td colspan="'+(days.length+3)+'">'+cat+'</td></tr>';
     rows.forEach(function(c){
-      html+='<tr><td>'+c.name+'</td>'+
-        '<td class="mono" style="text-align:right;">'+c.code+'</td>'+
-        '<td style="text-align:right;"><input type="number" id="h-'+c.id+'" min="0" max="999" step="0.25" placeholder="--" oninput="updateGrand()"/></td></tr>';
+      bodyHtml+='<tr>';
+      bodyHtml+='<td class="cls-name">'+c.name+'</td>';
+      bodyHtml+='<td class="cls-code">'+c.code+'</td>';
+      days.forEach(function(d,di){
+        var isWeekend=d.getDay()===0||d.getDay()===6;
+        bodyHtml+='<td style="'+(isWeekend?'background:#f8f8f6;':'')+'"><input type="number" class="tsg" id="g-'+c.id+'-'+di+'" min="0" max="24" step="0.25" placeholder="" oninput="updateGrid()"/></td>';
+      });
+      bodyHtml+='<td class="row-total" id="rt-'+c.id+'">0.0</td>';
+      bodyHtml+='</tr>';
     });
-    var key=cat.replace(/[^a-z]/gi,'_');
-    html+='<tr class="sub"><td colspan="2" style="text-align:right;padding-right:10px;">'+cat+' subtotal</td><td class="sv" id="sub-'+key+'">0.0</td></tr>';
   });
-  document.getElementById('ts-body').innerHTML=html;
-  updateGrand();
+  document.getElementById('ts-grid-body').className='tsg';
+  document.getElementById('ts-grid-body').innerHTML=bodyHtml;
+
+  // Build footer (daily totals)
+  var footHtml='<tr>';
+  footHtml+='<td colspan="2" style="padding:4px 8px;font-size:12px;font-weight:700;border-top:2px solid var(--border);background:var(--bg);">Daily totals</td>';
+  days.forEach(function(d,di){
+    footHtml+='<td class="day-total" id="dt-'+di+'">0.0</td>';
+  });
+  footHtml+='<td class="grand-total-cell" id="grand-total">0.0</td>';
+  footHtml+='</tr>';
+  document.getElementById('ts-grid-foot').className='tsg';
+  document.getElementById('ts-grid-foot').innerHTML=footHtml;
+
+  updateGrid();
 }
 function getH(id){var el=document.getElementById('h-'+id);return el?(parseFloat(el.value)||0):0;}
-function updateGrand(){
+function updateGrid(){
+  var ppIdx=+document.getElementById('pay-period').value;
+  var days=getPPDays(ppIdx);
   var grand=0;
-  var cats=allCats.length?allCats:['General','Projects/Classes','Leave'];
-  cats.forEach(function(cat){
-    var sub=allClasses.filter(function(c){return c.category===cat;}).reduce(function(s,c){return s+getH(c.id);},0);
-    grand+=sub;
-    var el=document.getElementById('sub-'+cat.replace(/[^a-z]/gi,'_'));
-    if(el)el.textContent=sub.toFixed(1);
+  // Update row totals
+  allClasses.forEach(function(c){
+    var rowTotal=0;
+    days.forEach(function(d,di){
+      var el=document.getElementById('g-'+c.id+'-'+di);
+      rowTotal+=parseFloat(el&&el.value||0)||0;
+    });
+    var rt=document.getElementById('rt-'+c.id);
+    if(rt)rt.textContent=rowTotal.toFixed(1);
+    grand+=rowTotal;
   });
-  // Add custom rows
-  var tbody=document.getElementById('ts-body');
-  if(tbody) tbody.querySelectorAll('tr[id^="custom-row-"]').forEach(function(tr){
+  // Update day totals
+  days.forEach(function(d,di){
+    var dayTotal=0;
+    allClasses.forEach(function(c){
+      var el=document.getElementById('g-'+c.id+'-'+di);
+      dayTotal+=parseFloat(el&&el.value||0)||0;
+    });
+    // Add custom row day totals
+    document.querySelectorAll('tr[id^="custom-row-"]').forEach(function(tr){
+      var n=tr.id.replace('custom-row-','');
+      var el=document.getElementById('cg-'+n+'-'+di);
+      dayTotal+=parseFloat(el&&el.value||0)||0;
+    });
+    var dt=document.getElementById('dt-'+di);
+    if(dt)dt.textContent=dayTotal.toFixed(1);
+    // Add custom row totals to grand
+    document.querySelectorAll('tr[id^="custom-row-"]').forEach(function(tr){
+      var n=tr.id.replace('custom-row-','');
+      var el=document.getElementById('cg-'+n+'-'+di);
+      if(di===0){} // handled below
+    });
+  });
+  // Custom row totals
+  document.querySelectorAll('tr[id^="custom-row-"]').forEach(function(tr){
     var n=tr.id.replace('custom-row-','');
-    var hrs=document.getElementById('ch-'+n);
-    grand+=parseFloat(hrs&&hrs.value||0)||0;
+    var rowTotal=0;
+    days.forEach(function(d,di){
+      var el=document.getElementById('cg-'+n+'-'+di);
+      rowTotal+=parseFloat(el&&el.value||0)||0;
+    });
+    var rt=document.getElementById('crt-'+n);
+    if(rt)rt.textContent=rowTotal.toFixed(1);
+    grand+=rowTotal;
   });
-  document.getElementById('grand-total').textContent=grand.toFixed(1);
+  var gt=document.getElementById('grand-total');
+  if(gt)gt.textContent=grand.toFixed(1);
 }
+
+function getH(id){return 0;} // legacy stub
 var customRowCount = 0;
 
 function addCustomTSRow(){
   customRowCount++;
   var n = customRowCount;
-  var tbody = document.getElementById('ts-body');
+  var ppIdx=+document.getElementById('pay-period').value;
+  var days=getPPDays(ppIdx);
+  var tbody = document.getElementById('ts-grid-body');
   var tr = document.createElement('tr');
   tr.id = 'custom-row-'+n;
-  tr.innerHTML =
-    '<td><input type="text" id="cname-'+n+'" placeholder="Project / class name" style="width:100%;"/></td>'+
-    '<td><input type="text" id="ccode-'+n+'" placeholder="QB code" style="width:70px;text-align:right;font-family:monospace;"/></td>'+
-    '<td style="text-align:right;display:flex;align-items:center;gap:4px;justify-content:flex-end;">'+
-      '<input type="number" id="ch-'+n+'" min="0" max="999" step="0.25" placeholder="--" oninput="updateGrand()" style="width:70px;"/>'+
-      '<button onclick="removeCustomTSRow('+n+')" style="background:none;border:none;color:var(--red);cursor:pointer;font-size:14px;padding:0 2px;" title="Remove">x</button>'+
-    '</td>';
+  var html='<td class="cls-name" style="display:flex;gap:4px;align-items:center;">'+
+    '<input type="text" id="cname-'+n+'" placeholder="Class name" style="flex:1;min-width:80px;font-size:11px;"/>'+
+    '<button onclick="removeCustomTSRow('+n+')" style="background:none;border:none;color:var(--red);cursor:pointer;font-size:13px;flex-shrink:0;">x</button>'+
+    '</td>'+
+    '<td class="cls-code"><input type="text" id="ccode-'+n+'" placeholder="QB" style="width:38px;font-size:10px;text-align:center;font-family:monospace;"/></td>';
+  days.forEach(function(d,di){
+    var isWeekend=d.getDay()===0||d.getDay()===6;
+    html+='<td style="'+(isWeekend?'background:#f8f8f6;':'')+'"><input type="number" class="tsg" id="cg-'+n+'-'+di+'" min="0" max="24" step="0.25" oninput="updateGrid()"/></td>';
+  });
+  html+='<td class="row-total" id="crt-'+n+'">0.0</td>';
+  tr.innerHTML=html;
   tbody.appendChild(tr);
 }
 
 function removeCustomTSRow(n){
   var row = document.getElementById('custom-row-'+n);
   if(row) row.remove();
-  updateGrand();
+  updateGrid();
 }
 
 function getCustomRows(){
+  var ppIdx=+document.getElementById('pay-period').value;
+  var days=getPPDays(ppIdx);
   var rows = [];
-  var tbody = document.getElementById('ts-body');
-  if(!tbody) return rows;
-  tbody.querySelectorAll('tr[id^="custom-row-"]').forEach(function(tr){
+  document.querySelectorAll('tr[id^="custom-row-"]').forEach(function(tr){
     var n = tr.id.replace('custom-row-','');
     var name = document.getElementById('cname-'+n);
     var code = document.getElementById('ccode-'+n);
-    var hrs = document.getElementById('ch-'+n);
-    var h = parseFloat(hrs&&hrs.value||0)||0;
     if(name && name.value.trim()){
+      var totalHrs=0;
+      var dayHours=[];
+      days.forEach(function(d,di){
+        var el=document.getElementById('cg-'+n+'-'+di);
+        var h=parseFloat(el&&el.value||0)||0;
+        dayHours.push(h);
+        totalHrs+=h;
+      });
       rows.push({
         id: 'custom-'+n,
         name: name.value.trim(),
         code: code ? code.value.trim() : '',
         category: 'Custom',
-        hours: h
+        hours: totalHrs,
+        dayHours: dayHours
       });
     }
   });
@@ -867,18 +983,40 @@ function getCustomRows(){
 }
 
 function clearTS(){
-  allClasses.forEach(function(c){var el=document.getElementById('h-'+c.id);if(el)el.value='';});
-  // Remove all custom rows
-  var tbody = document.getElementById('ts-body');
-  if(tbody) tbody.querySelectorAll('tr[id^="custom-row-"]').forEach(function(tr){tr.remove();});
-  customRowCount = 0;
+  var ppIdx=+document.getElementById('pay-period').value;
+  var days=getPPDays(ppIdx);
+  // Clear all class inputs
+  allClasses.forEach(function(c){
+    days.forEach(function(d,di){
+      var el=document.getElementById('g-'+c.id+'-'+di);
+      if(el)el.value='';
+    });
+  });
+  // Remove custom rows
+  document.querySelectorAll('tr[id^="custom-row-"]').forEach(function(tr){tr.remove();});
+  customRowCount=0;
   document.getElementById('ts-notes').value='';
-  updateGrand();
+  updateGrid();
 }
 async function submitTS(){
   var idx=+document.getElementById('pay-period').value;
   var p=PP[idx];
-  var entries=allClasses.map(function(c){return Object.assign({},c,{hours:getH(c.id)});}).filter(function(e){return e.hours>0;});
+  var ppIdx=+document.getElementById('pay-period').value;
+  var days=getPPDays(ppIdx);
+  var entries=[];
+  allClasses.forEach(function(c){
+    var totalHrs=0;
+    var dayHours=[];
+    days.forEach(function(d,di){
+      var el=document.getElementById('g-'+c.id+'-'+di);
+      var h=parseFloat(el&&el.value||0)||0;
+      dayHours.push({date:d.toISOString().slice(0,10),hours:h});
+      totalHrs+=h;
+    });
+    if(totalHrs>0){
+      entries.push({id:c.id,name:c.name,code:c.code,category:c.category,hours:totalHrs,dayHours:dayHours});
+    }
+  });
   // Add custom rows
   getCustomRows().filter(function(r){return r.hours>0;}).forEach(function(r){entries.push(r);});
   if(!entries.length){alert('Please enter hours for at least one class.');return;}
@@ -1655,8 +1793,31 @@ function loadSigFile(ev,id){
 function exportTSCSV(){
   var idx=+document.getElementById('pay-period').value;var p=PP[idx];
   var csv='"Sitka Conservation Society -- Employee Timesheet"\n"Employee","'+currentUser.name+'"\n"Pay Period","'+p.l+'"\n"Due","'+p.due+'"\n"Pay Day","'+p.pay+'"\n\n"Category","Class","QB Code","Hours"\n';
-  allClasses.forEach(function(c){var h=getH(c.id);if(h>0)csv+='"'+c.category+'","'+c.name+'","'+c.code+'","'+h+'"\n';});
-  getCustomRows().filter(function(r){return r.hours>0;}).forEach(function(r){csv+='"Custom","'+r.name+'","'+r.code+'","'+r.hours+'"\n';});
+  var ppIdx2=+document.getElementById('pay-period').value;
+  var days2=getPPDays(ppIdx2);
+  // Header row with dates
+  csv+='"Category","Class","QB Code"';
+  days2.forEach(function(d){csv+=',"'+d.toISOString().slice(0,10)+'"';});
+  csv+=',"Total"\n';
+  allClasses.forEach(function(c){
+    var totalHrs=0;
+    var dayVals=[];
+    days2.forEach(function(d,di){
+      var el=document.getElementById('g-'+c.id+'-'+di);
+      var h=parseFloat(el&&el.value||0)||0;
+      dayVals.push(h);totalHrs+=h;
+    });
+    if(totalHrs>0){
+      csv+='"'+c.category+'","'+c.name+'","'+c.code+'"';
+      dayVals.forEach(function(h){csv+=','+h;});
+      csv+=','+totalHrs+'\n';
+    }
+  });
+  getCustomRows().filter(function(r){return r.hours>0;}).forEach(function(r){
+    csv+='"Custom","'+r.name+'","'+(r.code||'')+'"';
+    (r.dayHours||[]).forEach(function(h){csv+=','+h;});
+    csv+=','+r.hours+'\n';
+  });
   var total=allClasses.reduce(function(s,c){return s+getH(c.id);},0);
   csv+='\n"TOTAL","","","'+total.toFixed(1)+'"';
   var notes=document.getElementById('ts-notes').value;if(notes)csv+='\n"Notes","'+notes+'"';
