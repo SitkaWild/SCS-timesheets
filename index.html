@@ -227,6 +227,9 @@ input[type=number]{width:80px;text-align:right;}
         <div><div class="pi-lbl">Timesheet due</div><div class="pi-val due" id="pi-due">-</div></div>
         <div><div class="pi-lbl">Pay day</div><div class="pi-val" id="pi-pay">-</div></div>
       </div>
+      <div style="display:flex;justify-content:flex-end;margin-bottom:.75rem;">
+        <button class="btn btn-sm" onclick="toggleRefPanel()" style="color:var(--accent);border-color:var(--accent);">&#128203; Class &amp; Account Reference</button>
+      </div>
       <div style="overflow-x:auto;margin-bottom:1.25rem;">
         <table id="ts-grid" style="border-collapse:collapse;font-size:12px;min-width:600px;width:100%;background:var(--surface);border:1px solid var(--border);border-radius:var(--rl);">
           <thead id="ts-grid-head"></thead>
@@ -345,6 +348,17 @@ input[type=number]{width:80px;text-align:right;}
         <table class="ct"><thead><tr><th>QB code</th><th>Name</th><th>Category</th><th></th></tr></thead>
         <tbody id="class-list"><tr><td colspan="4" class="loading">Loading...</td></tr></tbody></table>
       </div>
+      <div class="card">
+        <div style="font-size:15px;font-weight:600;margin-bottom:1rem;">Accounts</div>
+        <div style="display:grid;grid-template-columns:90px 1fr 80px;gap:10px;align-items:end;margin-bottom:10px;">
+          <div><label class="fl" for="na-code">Code</label><input type="text" id="na-code" placeholder="e.g. 6850"/></div>
+          <div><label class="fl" for="na-name">Account name</label><input type="text" id="na-name" placeholder="e.g. Supplies"/></div>
+          <div><label class="fl">&nbsp;</label><button class="btn btn-primary" onclick="addAccount()">+ Add</button></div>
+        </div>
+        <div id="acct-msg" class="flash"></div>
+        <table class="ct" style="margin-top:.75rem;"><thead><tr><th>Code</th><th>Name</th><th></th></tr></thead>
+        <tbody id="acct-list"><tr><td colspan="3" class="loading">Loading...</td></tr></tbody></table>
+      </div>
     </div>
 
     <div id="panel-notifications" class="panel">
@@ -419,6 +433,9 @@ input[type=number]{width:80px;text-align:right;}
     <!-- REIMBURSEMENTS -->
     <div id="panel-reimb" class="panel">
       <div class="section-head"><h2>Reimbursement request</h2></div>
+      <div style="display:flex;justify-content:flex-end;margin-bottom:.5rem;">
+        <button class="btn btn-sm" onclick="toggleRefPanel()" style="color:var(--accent);border-color:var(--accent);">&#128203; Class &amp; Account Reference</button>
+      </div>
       <div class="g2">
         <div><label class="fl">Employee</label><div id="reimb-emp" style="font-size:15px;font-weight:600;padding:9px 0;"></div></div>
         <div><label class="fl" for="reimb-period">Pay period</label><select id="reimb-period"></select></div>
@@ -496,6 +513,23 @@ input[type=number]{width:80px;text-align:right;}
   </div>
 </div>
 
+  </div>
+</div>
+
+<div id="ref-panel" style="display:none;position:fixed;top:60px;right:16px;width:320px;max-height:calc(100vh - 80px);background:var(--surface);border:1px solid var(--border);border-radius:var(--rl);box-shadow:0 8px 24px rgba(0,0,0,.15);z-index:500;overflow:hidden;display:flex;flex-direction:column;">
+  <div style="padding:12px 16px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;background:var(--accent-lt);flex-shrink:0;">
+    <div style="font-weight:600;font-size:14px;color:var(--accent);">&#128203; Quick Reference</div>
+    <button onclick="toggleRefPanel()" style="background:none;border:none;cursor:pointer;font-size:18px;color:var(--t2);line-height:1;">&times;</button>
+  </div>
+  <div style="overflow-y:auto;flex:1;">
+    <div style="padding:10px 16px;border-bottom:1px solid var(--border-lt);">
+      <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--t2);margin-bottom:8px;">Classes</div>
+      <div id="ref-classes-list" style="font-size:12px;"></div>
+    </div>
+    <div style="padding:10px 16px;">
+      <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--t2);margin-bottom:8px;">Accounts</div>
+      <div id="ref-accounts-list" style="font-size:12px;"></div>
+    </div>
   </div>
 </div>
 
@@ -769,7 +803,7 @@ function showPanel(id,btn){
   if(id==='history'){renderHistory();renderReimbHistory();}
   if(id==='approvals')renderApprovals();
   if(id==='users')renderUsers();
-  if(id==='classes'){renderClasses();renderCats();}
+  if(id==='classes'){renderClasses();renderCats();renderAccounts();}
   if(id==='notifications'){loadEJSConfig();renderReminderList();loadTpl();}
   if(id==='reimb'){
     initReimb();
@@ -1910,9 +1944,12 @@ async function renderReminderList(){
 // --- SIGNATURES ---
 function initSig(id){
   var c=document.getElementById(id);if(!c)return;
+  // Ensure canvas has proper dimensions
+  var rect=c.getBoundingClientRect();
+  if(rect.width===0){setTimeout(function(){initSig(id);},100);return;}
   var ctx=c.getContext('2d'),drawing=false;
   var dpr=window.devicePixelRatio||1;
-  function resize(){var r=c.getBoundingClientRect();c.width=r.width*dpr;c.height=r.height*dpr;ctx.scale(dpr,dpr);ctx.strokeStyle='#1A2B1A';ctx.lineWidth=1.8;ctx.lineCap='round';ctx.lineJoin='round';}
+  function resize(){var r=c.getBoundingClientRect();if(r.width===0)return;c.width=r.width*dpr;c.height=r.height*dpr;ctx.scale(dpr,dpr);ctx.strokeStyle='#1A2B1A';ctx.lineWidth=1.8;ctx.lineCap='round';ctx.lineJoin='round';}
   resize();
   function pos(e){var r=c.getBoundingClientRect();var s=e.touches?e.touches[0]:e;return{x:s.clientX-r.left,y:s.clientY-r.top};}
   c.addEventListener('mousedown',function(e){drawing=true;var p=pos(e);ctx.beginPath();ctx.moveTo(p.x,p.y);});
@@ -1926,8 +1963,13 @@ function initSig(id){
 function clearSig(id){var c=document.getElementById(id);if(!c)return;c.getContext('2d').clearRect(0,0,c.width,c.height);}
 function getSigURL(id){
   var c=document.getElementById(id);if(!c)return null;
-  var b=document.createElement('canvas');b.width=c.width;b.height=c.height;
-  if(c.toDataURL()===b.toDataURL())return null;
+  if(!c.width||!c.height)return null;
+  // Check if canvas has any non-transparent pixels
+  var ctx=c.getContext('2d');
+  var data=ctx.getImageData(0,0,c.width,c.height).data;
+  var hasContent=false;
+  for(var i=3;i<data.length;i+=4){if(data[i]>10){hasContent=true;break;}}
+  if(!hasContent)return null;
   return c.toDataURL('image/png');
 }
 function loadSigFile(ev,id){
@@ -2243,6 +2285,9 @@ async function renderReimbHistory(){
     if(s.status==='pending'){
       cancelReimbBtn='<button class="btn btn-sm" onclick="cancelAndEditReimb(this.dataset.id)" data-id="'+s.id+'" style="font-size:11px;margin-top:4px;">Cancel &amp; edit</button>';
     }
+    if(s.status==='rejected'){
+      cancelReimbBtn='<button class="btn btn-sm btn-primary" onclick="cancelAndEditReimb(this.dataset.id)" data-id="'+s.id+'" style="font-size:11px;margin-top:4px;">Edit &amp; resubmit</button>';
+    }
     tr.innerHTML =
       '<td><strong>'+s.period+'</strong></td>'+
       '<td style="font-size:12px;">'+itemSummary.slice(0,60)+(itemSummary.length>60?'...':'')+'</td>'+
@@ -2343,9 +2388,11 @@ async function renderReimbApprovals(){
       if(rbtns[0]) rbtns[0].addEventListener('click',function(e){e.stopPropagation();approveReimb(sid,sobj);});
       if(rbtns[1]) rbtns[1].addEventListener('click',function(e){e.stopPropagation();rejectReimb(sid,sobj);});
       if(rbtns[2]) rbtns[2].addEventListener('click',function(e){e.stopPropagation();deleteReimb(sid);});
+      if(rbtns[3]) rbtns[3].addEventListener('click',function(e){e.stopPropagation();printSingleReimb(sobj);});
     } else {
-      var rDelBtn = wrap.querySelector('.btn-danger');
-      if(rDelBtn) rDelBtn.addEventListener('click',function(e){e.stopPropagation();deleteReimb(sid);});
+      var rAllBtns = wrap.querySelectorAll('.ab button');
+      if(rAllBtns[0]) rAllBtns[0].addEventListener('click',function(e){e.stopPropagation();deleteReimb(sid);});
+      if(rAllBtns[1]) rAllBtns[1].addEventListener('click',function(e){e.stopPropagation();printSingleReimb(sobj);});
     }
     frag.appendChild(wrap);
   });
@@ -2880,6 +2927,239 @@ function loadReimbDraft(){
 function clearReimbDraft(){
   localStorage.removeItem(getReimbDraftKey());
 }
+
+// --- ACCOUNTS ---
+async function renderAccounts(){
+  var body = document.getElementById('acct-list');
+  if(!body) return;
+  var r = await sb.from('accounts').select('*').order('sort_order');
+  var data = r.data||[];
+  if(!data.length){body.innerHTML='<tr><td colspan="3" class="empty">No accounts yet — click + Add to add from the reference list or enter manually</td></tr>';return;}
+  var frag = document.createDocumentFragment();
+  data.forEach(function(a){
+    var tr = document.createElement('tr');
+    tr.id = 'acrow-'+a.id;
+    var td1 = document.createElement('td');td1.className='mono';td1.textContent=a.code;
+    var td2 = document.createElement('td');td2.textContent=a.name;
+    var td3 = document.createElement('td');td3.style.whiteSpace='nowrap';
+    var editBtn = document.createElement('button');editBtn.className='btn btn-sm';editBtn.textContent='Edit';
+    var delBtn = document.createElement('button');delBtn.className='btn btn-sm btn-danger';delBtn.textContent='Remove';
+    delBtn.style.marginLeft='4px';
+    var aid = a.id;
+    editBtn.addEventListener('click',function(){inlineEditAccount(aid);});
+    delBtn.addEventListener('click',function(){deleteAccount(aid,a.name);});
+    td3.appendChild(editBtn);td3.appendChild(delBtn);
+    tr.appendChild(td1);tr.appendChild(td2);tr.appendChild(td3);
+    frag.appendChild(tr);
+  });
+  body.innerHTML='';
+  body.appendChild(frag);
+}
+
+async function addAccount(){
+  var code = document.getElementById('na-code').value.trim();
+  var name = document.getElementById('na-name').value.trim();
+  var msg = document.getElementById('acct-msg');
+  if(!code||!name){flash(msg,'Please enter both code and name.','err');return;}
+  var r = await sb.from('accounts').select('sort_order').order('sort_order',{ascending:false}).limit(1);
+  var maxO = r.data&&r.data.length ? (r.data[0].sort_order||0)+1 : 1;
+  var ins = await sb.from('accounts').insert({code:code,name:name,sort_order:maxO});
+  if(ins.error){flash(msg,ins.error.message,'err');return;}
+  document.getElementById('na-code').value='';
+  document.getElementById('na-name').value='';
+  flash(msg,'Account added.','ok');
+  renderAccounts();
+}
+
+function inlineEditAccount(id){
+  var row = document.getElementById('acrow-'+id);
+  if(!row)return;
+  var cells = row.querySelectorAll('td');
+  var oldCode = cells[0].textContent;
+  var oldName = cells[1].textContent;
+  row.innerHTML =
+    '<td><input type="text" id="ae-code" value="'+oldCode+'" style="width:70px;font-size:13px;"/></td>'+
+    '<td><input type="text" id="ae-name" value="'+oldName+'" style="font-size:13px;"/></td>'+
+    '<td style="white-space:nowrap;">'+
+      '<button class="btn btn-sm btn-primary" onclick="saveAccountEdit(this.dataset.aid)" data-aid="'+id+'">Save</button> '+
+      '<button class="btn btn-sm" onclick="renderAccounts()">Cancel</button>'+
+    '</td>';
+  setTimeout(function(){var el=document.getElementById('ae-name');if(el){el.focus();el.select();}},50);
+}
+
+async function saveAccountEdit(id){
+  var code = document.getElementById('ae-code').value.trim();
+  var name = document.getElementById('ae-name').value.trim();
+  if(!code||!name){alert('Code and name required.');return;}
+  var r = await sb.from('accounts').update({code:code,name:name}).eq('id',id);
+  if(r.error){alert(r.error.message);return;}
+  renderAccounts();
+  flash(document.getElementById('acct-msg'),'Account updated.','ok');
+}
+
+async function deleteAccount(id,name){
+  if(!confirm('Remove "'+name+'"?'))return;
+  await sb.from('accounts').delete().eq('id',id);
+  renderAccounts();
+}
+
+// --- REFERENCE PANEL ---
+var REF_CLASSES = [
+  {code:'100',name:'General Fund',parent:false},
+  {code:'110',name:'Boat Trips',parent:false},
+  {code:'200',name:'WILDERNESS PROJECTS',parent:true},
+  {code:'210',name:'Living Wilderness Fund',parent:false},
+  {code:'220',name:'SPF Property',parent:false},
+  {code:'221',name:'Sea Pony Press',parent:false},
+  {code:'222',name:'P&E LWF Award',parent:false},
+  {code:'230',name:'LWSP',parent:false},
+  {code:'283',name:'Stewardship',parent:false},
+  {code:'284',name:'Stewardship - FS',parent:false},
+  {code:'285',name:'Stewardship - SCS',parent:false},
+  {code:'290',name:'Chief Shakes HOT -038',parent:false},
+  {code:'291',name:'CSH - FS',parent:false},
+  {code:'292',name:'CSH - SCS',parent:false},
+  {code:'295',name:'Invasive Plants',parent:false},
+  {code:'296',name:'Invasive Plants - FS',parent:false},
+  {code:'297',name:'Invasive Plants - SCS',parent:false},
+  {code:'300',name:'Lobbying',parent:false},
+  {code:'400',name:'NFF AGREEMENTS',parent:true},
+  {code:'490',name:'Kegan Cove',parent:false},
+  {code:'491',name:'Green Top',parent:false},
+  {code:'492',name:'Map Youth Comm. Building',parent:false},
+  {code:'493',name:'Tongass Collab. YG',parent:false},
+  {code:'500',name:'FOREST SERVICE AGREEMENTS',parent:true},
+  {code:'540',name:'Landslides',parent:false},
+  {code:'538',name:'Landslides -058 FS',parent:false},
+  {code:'539',name:'Landslides -058 SCS',parent:false},
+  {code:'541',name:'South Thayer 071',parent:false},
+  {code:'542',name:'South Thayer - FS',parent:false},
+  {code:'543',name:'South Thayer - SCS',parent:false},
+  {code:'550',name:'HOME',parent:false},
+  {code:'551',name:'HOME - FS',parent:false},
+  {code:'552',name:'HOME - SCS',parent:false},
+  {code:'553',name:'Young Growth Timber',parent:false},
+  {code:'554',name:'YGT - FS',parent:false},
+  {code:'555',name:'YGT - SCS',parent:false},
+  {code:'600',name:'COMMUNICATIONS',parent:true},
+  {code:'601',name:'Communications - GF',parent:false},
+  {code:'603',name:'Sustainable Storytelling -FS',parent:false},
+  {code:'604',name:'Sustainable Storytelling -SCS',parent:false},
+  {code:'605',name:'Sustainable Storytelling',parent:false},
+  {code:'606',name:'SE Working Together',parent:false},
+  {code:'610',name:'SSP Communications',parent:false},
+  {code:'700',name:'COMMUNITY SUSTAINABILITY PROJECTS',parent:true},
+  {code:'710',name:'Local Lumber 4 Education',parent:false},
+  {code:'715',name:'YG Catalyzation',parent:false},
+  {code:'725',name:'MEHS Arts',parent:false},
+  {code:'735',name:'Trail Master',parent:false},
+  {code:'736',name:'STW - TSF',parent:false},
+  {code:'740',name:'T. Brown Pottery',parent:false},
+  {code:'745',name:'ADV Clean up',parent:false},
+  {code:'771',name:'Community Classes',parent:false},
+  {code:'775',name:'Salty Spoke',parent:false},
+  {code:'780',name:'Sitka Carbon Offset Fund',parent:false},
+  {code:'785',name:'Sitka Mutual Aid',parent:false},
+  {code:'795',name:'FitzGibbon Mem. Scholarship',parent:false},
+  {code:'800',name:'COMM. SUS. YOUTH DEVELOPMENT PROG.',parent:true},
+  {code:'820',name:'IYCLPF',parent:false},
+  {code:'825',name:'PHS Garden Thriving',parent:false},
+  {code:'830',name:'HS Wood Const. Prog.',parent:false},
+  {code:'835',name:'PHS Food Security Work',parent:false},
+  {code:'838',name:'PHS AgWest',parent:false},
+  {code:'839',name:'PHS Specialty Crops',parent:false},
+  {code:'840',name:'4H',parent:false},
+  {code:'842',name:'AK Way of Life',parent:false},
+  {code:'843',name:'Sitka Spruce Tips',parent:false},
+  {code:'845',name:'White E',parent:false},
+  {code:'846',name:'Youth Programming',parent:false},
+  {code:'847',name:'Youth Community Building',parent:false},
+  {code:'850',name:'Yakutat Surf Club',parent:false},
+  {code:'851',name:'Moananuakea',parent:false},
+  {code:'865',name:'Encounters North',parent:false},
+  {code:'900',name:'USDA OTR - Agreements',parent:true},
+  {code:'905',name:'FSB Relationships',parent:false},
+  {code:'906',name:'Citizen Engagement',parent:false},
+  {code:'908',name:'Native Fish Initiative Ph2',parent:false}
+];
+
+var REF_ACCOUNTS = [
+  '4000 - Grant Income','4001 - Federal Reimbursement Funds','4300 - Individual Contributions',
+  '4305 - Individual Donation','4310 - Major Donation','4315 - Monthly Donation',
+  '4320 - Membership Dues','4321 - New Member','4400 - Fundraising/Special Events',
+  '4450 - Program (Service/Rental) Income','4500 - Retail Donations','5000 - Merchandise Expense',
+  '6000 - Personnel Expense','6100 - Payroll Expenses','6101 - Director Salary',
+  '6110 - Interns','6120 - Permanent Wages','6130 - Temporary Employees',
+  '6199 - Direct Deposit Fees','6200 - Payroll Tax Expense','6300 - Employee Benefits',
+  '6400 - Workers Comp Insurance','6500 - Events & Outreach','6510 - Advertising',
+  '6520 - Boat Trips','6530 - Meeting & Event Expense','6531 - Organizing Meeting',
+  '6532 - Community Meeting','6533 - Organizational Meeting','6534 - Conference Attendance',
+  '6540 - Special Events Expense','6542 - Contract','6543 - Special Event Exp/Rent',
+  '6600 - Office and Rent','6601 - Rent & Utilities','6610 - General Office Operations',
+  '6620 - Software & Website','6630 - Dues & Subscriptions','6640 - Equipment & Maint.',
+  '6650 - Liability Insurance','6651 - D&O Insurance','6655 - Property Insurance',
+  '6660 - Office Repair & Maint.','6670 - Postage','6680 - Printing & Copying',
+  '6685 - Charges / Fees','6690 - Office Supplies','6695 - Telephone/Internet',
+  '6700 - Professional Fees','6710 - Accounting','6720 - Environmental',
+  '6730 - Graphic Design','6740 - Media & Outreach','6750 - Other Professional Fee',
+  '6760 - Legal','6780 - Newsletter','6800 - Program Support',
+  '6805 - Grant Expense/Matching','6810 - Fieldwork Exp','6812 - Fieldwork Equip/Supplies',
+  '6813 - Fieldwork Support/Contract','6820 - Fundraising','6830 - Training',
+  '6840 - Travel Expense','6842 - Travel Reimb/Exp','6843 - Per Diem',
+  '6850 - Supplies','6860 - Volunteer Stipends','6900 - Depreciation Expense',
+  '4900 - Indirect Transfer','4920 - Overhead Transfer','7000 - Interest Income',
+  '7100 - Local Invest. Int. Earned','7900 - Unrealized Gain/Loss','7010 - Donation/Support Given',
+  '7500 - Overhead/Indirect Txfer DEBIT'
+];
+
+var refPanelOpen = false;
+
+function toggleRefPanel(){
+  var panel = document.getElementById('ref-panel');
+  if(!panel) return;
+  refPanelOpen = !refPanelOpen;
+  panel.style.display = refPanelOpen ? 'flex' : 'none';
+  if(refPanelOpen) buildRefPanel();
+}
+
+function buildRefPanel(){
+  // Build classes list with hierarchy
+  var clsList = document.getElementById('ref-classes-list');
+  if(clsList){
+    var html = '';
+    REF_CLASSES.forEach(function(c){
+      if(c.parent){
+        html += '<div style="font-weight:700;color:var(--accent);margin-top:10px;margin-bottom:3px;font-size:11px;text-transform:uppercase;letter-spacing:.05em;">'+c.name+'</div>';
+      } else {
+        html += '<div style="display:flex;gap:6px;padding:2px 0 2px 8px;border-left:2px solid var(--border-lt);">'+
+          '<span style="font-family:monospace;color:var(--t3);min-width:30px;font-size:11px;">'+c.code+'</span>'+
+          '<span style="color:var(--text);">'+c.name+'</span>'+
+          '</div>';
+      }
+    });
+    clsList.innerHTML = html;
+  }
+  // Build accounts list
+  var acctList = document.getElementById('ref-accounts-list');
+  if(acctList){
+    var html2 = REF_ACCOUNTS.map(function(a){
+      var parts = a.split(' - ');
+      return '<div style="display:flex;gap:6px;padding:2px 0;">'+
+        '<span style="font-family:monospace;color:var(--t3);min-width:36px;font-size:11px;">'+parts[0]+'</span>'+
+        '<span style="color:var(--text);">'+parts.slice(1).join(' - ')+'</span>'+
+        '</div>';
+    }).join('');
+    acctList.innerHTML = html2;
+  }
+}
+
+// Close ref panel when clicking outside
+document.addEventListener('click',function(e){
+  if(refPanelOpen && !e.target.closest('#ref-panel') && !e.target.closest('button[onclick*="toggleRefPanel"]')){
+    var panel = document.getElementById('ref-panel');
+    if(panel){panel.style.display='none';refPanelOpen=false;}
+  }
+});
 
 // --- BOOT ---
 async function boot(){
