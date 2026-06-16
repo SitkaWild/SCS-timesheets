@@ -1059,12 +1059,16 @@ async function submitTS(){
   var total=entries.reduce(function(s,e){return s+e.hours;},0);
   var btn=document.getElementById('submit-btn');
   btn.disabled=true;btn.textContent='Submitting...';
+  var empSigData = getSigURL('sig-emp');
+  var empSigDate = document.getElementById('sig-emp-date') ? document.getElementById('sig-emp-date').value : '';
   var r=await sb.from('submissions').insert({
     user_id:currentUser.id,staff_name:currentUser.name,
     period:p.l,period_due:p.due,period_payday:p.pay,
     entries:entries,total_hours:total,
     notes:document.getElementById('ts-notes').value||null,
-    status:'pending'
+    status:'pending',
+    employee_signature:empSigData||null,
+    employee_sig_date:empSigDate||null
   });
   btn.disabled=false;btn.textContent='Submit for approval';
   if(r.error){flash(document.getElementById('ts-msg'),'Error: '+r.error.message,'err');return;}
@@ -1159,13 +1163,63 @@ async function renderApprovals(){
   }
   var frag=document.createDocumentFragment();
   approvalData.forEach(function(s){
-    var rows=s.entries.map(function(e){
-      return '<tr>'+
-        '<td style="padding:5px 10px;font-size:12px;color:var(--t2);">'+e.category+'</td>'+
-        '<td style="padding:5px 10px;">'+e.name+'</td>'+
-        '<td style="padding:5px 10px;font-family:monospace;font-size:11px;color:var(--t3);">'+e.code+'</td>'+
-        '<td style="padding:5px 10px;font-weight:600;text-align:right;">'+e.hours+'</td></tr>';
-    }).join('');
+    // Build grid view for expanded detail
+    var pp2 = PP.find(function(p2){return p2.l===s.period;});
+    var expandDays=[];
+    if(pp2){
+      var ec=new Date(pp2.s+'T12:00:00'),ee=new Date(pp2.e+'T12:00:00');
+      while(ec<=ee){expandDays.push(new Date(ec));ec.setDate(ec.getDate()+1);}
+    }
+    var dayNamesShort=['Su','Mo','Tu','We','Th','Fr','Sa'];
+    var expandGridHtml='';
+    if(expandDays.length){
+      expandGridHtml='<div style="overflow-x:auto;padding:8px 10px;">';
+      expandGridHtml+='<table style="border-collapse:collapse;font-size:11px;width:100%;">';
+      expandGridHtml+='<thead><tr>';
+      expandGridHtml+='<th style="text-align:left;padding:4px 6px;border:1px solid var(--border);background:var(--bg);min-width:100px;">Class</th>';
+      expandGridHtml+='<th style="padding:4px 3px;border:1px solid var(--border);background:var(--bg);width:30px;text-align:center;">QB</th>';
+      expandDays.forEach(function(d){
+        var isWe=d.getDay()===0||d.getDay()===6;
+        expandGridHtml+='<th style="padding:3px 2px;border:1px solid var(--border);background:'+(isWe?'#f4f4f2':'var(--bg)')+';width:26px;text-align:center;font-weight:500;">'+
+          dayNamesShort[d.getDay()]+'<br/><span style="font-size:9px;font-weight:400;color:var(--t3);">'+d.getDate()+'</span></th>';
+      });
+      expandGridHtml+='<th style="padding:4px 5px;border:1px solid var(--border);background:var(--accent-lt);width:36px;text-align:right;color:var(--accent);">Total</th>';
+      expandGridHtml+='</tr></thead><tbody>';
+      // Group by category
+      var cats2={};
+      s.entries.forEach(function(e){var c=e.category||'Other';if(!cats2[c])cats2[c]=[];cats2[c].push(e);});
+      Object.keys(cats2).forEach(function(cat){
+        expandGridHtml+='<tr><td colspan="'+(expandDays.length+3)+'" style="background:var(--bg);padding:3px 6px;font-size:9px;font-weight:700;text-transform:uppercase;color:var(--t2);border:1px solid var(--border);">'+cat+'</td></tr>';
+        cats2[cat].forEach(function(e){
+          expandGridHtml+='<tr>';
+          expandGridHtml+='<td style="padding:3px 6px;border:1px solid var(--border-lt);">'+e.name+'</td>';
+          expandGridHtml+='<td style="padding:3px 2px;border:1px solid var(--border-lt);text-align:center;font-family:monospace;color:var(--t3);font-size:9px;">'+e.code+'</td>';
+          var dayMap={};
+          (e.dayHours||[]).forEach(function(dh){dayMap[dh.date]=dh.hours;});
+          expandDays.forEach(function(d){
+            var ds=d.toISOString().slice(0,10);
+            var h=dayMap[ds]||0;
+            var isWe=d.getDay()===0||d.getDay()===6;
+            expandGridHtml+='<td style="padding:3px 1px;border:1px solid var(--border-lt);text-align:center;background:'+(isWe?'#f8f8f6':'')+';'+(h>0?'font-weight:600;':'')+'">'+(h>0?h:'')+'</td>';
+          });
+          expandGridHtml+='<td style="padding:3px 5px;border:1px solid var(--border);text-align:right;font-weight:700;background:var(--accent-lt);color:var(--accent);">'+parseFloat(e.hours||0).toFixed(1)+'</td>';
+          expandGridHtml+='</tr>';
+        });
+      });
+      // Totals row
+      expandGridHtml+='<tr style="border-top:2px solid var(--border);">';
+      expandGridHtml+='<td colspan="2" style="padding:4px 6px;font-weight:700;font-size:10px;border:1px solid var(--border);background:var(--bg);">Daily totals</td>';
+      var gt2=0;
+      expandDays.forEach(function(d){
+        var ds=d.toISOString().slice(0,10);
+        var dt=0;
+        s.entries.forEach(function(e){(e.dayHours||[]).forEach(function(dh){if(dh.date===ds)dt+=parseFloat(dh.hours)||0;});});
+        gt2+=dt;
+        expandGridHtml+='<td style="padding:4px 1px;border:1px solid var(--border);text-align:center;font-weight:700;background:var(--bg);">'+(dt>0?dt.toFixed(1):'')+'</td>';
+      });
+      expandGridHtml+='<td style="padding:4px 5px;border:1px solid var(--border);text-align:right;font-weight:700;font-size:12px;background:var(--accent-lt);color:var(--accent);">'+gt2.toFixed(1)+'</td>';
+      expandGridHtml+='</tr></tbody></table></div>';
+    }
     var notesHtml=s.notes?'<div style="padding:8px 10px;font-size:12px;color:var(--t2);border-top:1px solid var(--border-lt);"><strong>Notes:</strong> '+s.notes+'</div>':'';
     var actionBtns=s.status==='pending'?
       '<button class="btn btn-sm btn-approve">Approve</button> <button class="btn btn-sm btn-reject">Reject</button> <button class="btn btn-sm btn-danger">Delete</button> <button class="btn btn-sm">Print</button>':
@@ -1335,9 +1389,7 @@ function openApproveModal(id,name){
 async function confirmApprove(){
   var id=document.getElementById('sig-modal-id').value;
   document.getElementById('sig-modal').classList.remove('open');
-  var r=await sb.from('submissions').select('*').eq('id',id).single();
   await sb.from('submissions').update({status:'approved',rejection_reason:null}).eq('id',id);
-  if(r.data)sendApprovalEmail(r.data);
   clearSig('sig-sup');
   renderApprovals();
 }
@@ -2123,6 +2175,8 @@ async function submitReimb(){
   var btn = document.getElementById('reimb-submit-btn');
   btn.disabled = true; btn.textContent = 'Uploading...';
   // Insert first to get ID for file paths
+  var reimbSigData = getSigURL('sig-reimb');
+  var reimbSigDate = document.getElementById('sig-reimb-date') ? document.getElementById('sig-reimb-date').value : '';
   var r = await sb.from('reimbursements').insert({
     user_id: currentUser.id,
     staff_name: currentUser.name,
@@ -2132,7 +2186,9 @@ async function submitReimb(){
     items: items,
     total: total,
     status: 'pending',
-    receipt_urls: []
+    receipt_urls: [],
+    employee_signature: reimbSigData||null,
+    employee_sig_date: reimbSigDate||null
   }).select().single();
   if(r.error){flash(document.getElementById('reimb-msg'),'Error: '+r.error.message,'err');btn.disabled=false;btn.textContent='Submit for approval';return;}
   var reimbId = r.data.id;
@@ -2376,11 +2432,6 @@ function printSingleReimb(s){
 async function approveReimb(id,sub){
   if(!confirm('Approve this reimbursement request?'))return;
   await sb.from('reimbursements').update({status:'approved',rejection_reason:null}).eq('id',id);
-  var u = allUsers.find(function(x){return x.id===sub.user_id;});
-  if(u&&u.email){
-    var msg = 'Hi '+u.name+',\n\nYour reimbursement request for '+sub.period+' ($'+parseFloat(sub.total).toFixed(2)+') has been approved.\n\nSitka Conservation Society';
-    await sendEmail(u.email,'Reimbursement Approved - '+sub.period,msg);
-  }
   renderReimbApprovals();
 }
 
