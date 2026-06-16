@@ -283,7 +283,12 @@ input[type=number]{width:80px;text-align:right;}
     </div>
 
     <div id="panel-approvals" class="panel">
-      <div class="section-head"><h2>Submissions</h2><button class="btn" onclick="exportAllCSV()">Export all CSV</button></div>
+      <div class="section-head"><h2>Submissions</h2>
+        <div style="display:flex;gap:8px;">
+          <button class="btn btn-sm" onclick="toggleRefPanel()" style="color:var(--accent);border-color:var(--accent);">&#128203; Reference</button>
+          <button class="btn" onclick="exportAllCSV()">Export all CSV</button>
+        </div>
+      </div>
       <div style="margin-bottom:1rem;display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
         <label class="fl" style="margin:0;">Filter:</label>
         <select id="f-staff" style="width:auto;font-size:13px;" onchange="renderApprovals()"><option value="">All staff</option></select>
@@ -323,7 +328,9 @@ input[type=number]{width:80px;text-align:right;}
     </div>
 
     <div id="panel-classes" class="panel">
-      <div class="section-head"><h2>Manage classes</h2></div>
+      <div class="section-head"><h2>Manage classes</h2>
+        <button class="btn btn-sm" onclick="showPanel('ref-edit',document.getElementById('ntab-ref-edit'))" style="color:var(--accent);border-color:var(--accent);">Edit reference panel</button>
+      </div>
       <div class="card">
         <div style="font-size:15px;font-weight:600;margin-bottom:1rem;">Categories</div>
         <div style="display:flex;gap:8px;align-items:end;margin-bottom:10px;">
@@ -430,15 +437,37 @@ input[type=number]{width:80px;text-align:right;}
       </div>
     </div>
 
+    <!-- REF EDIT PANEL -->
+    <div id="panel-ref-edit" class="panel">
+      <div class="section-head"><h2>Edit reference panel</h2></div>
+      <div class="card">
+        <div style="font-size:14px;font-weight:600;margin-bottom:.5rem;">Class hierarchy</div>
+        <p style="font-size:13px;color:var(--t2);margin-bottom:1rem;line-height:1.6;">
+          One entry per line. For parent/header rows use ALL CAPS. For sub-classes use: <code>CODE - Name</code>
+        </p>
+        <textarea id="ref-classes-edit" rows="20" style="font-family:monospace;font-size:12px;line-height:1.6;"></textarea>
+        <div id="ref-edit-msg" class="flash"></div>
+      </div>
+      <div class="card">
+        <div style="font-size:14px;font-weight:600;margin-bottom:.5rem;">Accounts</div>
+        <p style="font-size:13px;color:var(--t2);margin-bottom:1rem;">One account per line: <code>CODE - Name</code></p>
+        <textarea id="ref-accounts-edit" rows="20" style="font-family:monospace;font-size:12px;line-height:1.6;"></textarea>
+      </div>
+      <div class="btn-row">
+        <button class="btn btn-primary" onclick="saveRefEdits()">Save changes</button>
+        <button class="btn" onclick="resetRefEdits()">Reset to defaults</button>
+      </div>
+    </div>
+
     <!-- REIMBURSEMENTS -->
     <div id="panel-reimb" class="panel">
       <div class="section-head"><h2>Reimbursement request</h2></div>
-      <div style="display:flex;justify-content:flex-end;margin-bottom:.5rem;">
-        <button class="btn btn-sm" onclick="toggleRefPanel()" style="color:var(--accent);border-color:var(--accent);">&#128203; Class &amp; Account Reference</button>
-      </div>
       <div class="g2">
         <div><label class="fl">Employee</label><div id="reimb-emp" style="font-size:15px;font-weight:600;padding:9px 0;"></div></div>
         <div><label class="fl" for="reimb-period">Pay period</label><select id="reimb-period"></select></div>
+      </div>
+      <div style="display:flex;justify-content:flex-end;margin-bottom:.75rem;">
+        <button class="btn btn-sm" onclick="toggleRefPanel()" style="color:var(--accent);border-color:var(--accent);">&#128203; Class &amp; Account Reference</button>
       </div>
       <div class="card" style="padding:0 0 1rem 0;">
         <div style="padding:.75rem 1rem .5rem;font-size:13px;font-weight:600;border-bottom:1px solid var(--border-lt);display:flex;justify-content:space-between;align-items:center;">
@@ -491,7 +520,12 @@ input[type=number]{width:80px;text-align:right;}
 
     <!-- REIMBURSEMENT APPROVALS (admin) -->
     <div id="panel-reimb-approvals" class="panel">
-      <div class="section-head"><h2>Reimbursement requests</h2><button class="btn" onclick="exportReimbCSV()">Export CSV</button></div>
+      <div class="section-head"><h2>Reimbursement requests</h2>
+        <div style="display:flex;gap:8px;">
+          <button class="btn btn-sm" onclick="toggleRefPanel()" style="color:var(--accent);border-color:var(--accent);">&#128203; Reference</button>
+          <button class="btn" onclick="exportReimbCSV()">Export CSV</button>
+        </div>
+      </div>
       <div style="margin-bottom:1rem;display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
         <label class="fl" style="margin:0;">Filter:</label>
         <select id="rf-staff" style="width:auto;font-size:13px;" onchange="renderReimbApprovals()"><option value="">All staff</option></select>
@@ -747,7 +781,7 @@ async function enterApp(){
   document.getElementById('nav-uname').textContent=currentUser.name;
   var tabs=document.getElementById('nav-tabs');
   // Remove all dynamic tabs first
-  ['dashboard','timesheet','history','approvals','users','classes','notifications','reimb','reimb-approvals'].forEach(function(id){
+  ['dashboard','timesheet','history','approvals','users','classes','notifications','reimb','reimb-approvals','ref-edit'].forEach(function(id){
     var t=document.getElementById('ntab-'+id);if(t)t.remove();
   });
   // Build tab list based on role
@@ -790,7 +824,7 @@ async function enterApp(){
   var cfg=getEJSConfig();
   if(cfg.pubKey)emailjs.init(cfg.pubKey);
 }
-function logout(){currentUser=null;pinBuf='';initLogin();}
+function logout(){currentUser=null;pinBuf='';closeRefPanel();initLogin();}
 
 // --- PANELS ---
 function showPanel(id,btn){
@@ -805,6 +839,7 @@ function showPanel(id,btn){
   if(id==='users')renderUsers();
   if(id==='classes'){renderClasses();renderCats();renderAccounts();}
   if(id==='notifications'){loadEJSConfig();renderReminderList();loadTpl();}
+  if(id==='ref-edit'){loadRefEdits();}
   if(id==='reimb'){
     initReimb();
     setTimeout(function(){
@@ -1270,18 +1305,8 @@ async function renderApprovals(){
       '<span><span class="badge badge-'+s.status+'">'+s.status+'</span></span>'+
       '<div class="ab">'+actionBtns+'</div>'+
     '</div>';
-    var detailHtml='<div style="display:none;background:var(--bg);border-top:1px solid var(--border-lt);">'+
-      '<table style="width:100%;border-collapse:collapse;">'+
-      '<thead><tr style="background:var(--border-lt);">'+
-      '<th style="padding:6px 10px;font-size:10px;text-transform:uppercase;color:var(--t3);text-align:left;">Category</th>'+
-      '<th style="padding:6px 10px;font-size:10px;text-transform:uppercase;color:var(--t3);text-align:left;">Class</th>'+
-      '<th style="padding:6px 10px;font-size:10px;text-transform:uppercase;color:var(--t3);text-align:left;">QB Code</th>'+
-      '<th style="padding:6px 10px;font-size:10px;text-transform:uppercase;color:var(--t3);text-align:right;">Hours</th>'+
-      '</tr></thead><tbody>'+rows+'</tbody>'+
-      '<tfoot><tr style="border-top:1px solid var(--border);">'+
-      '<td colspan="3" style="padding:6px 10px;font-size:12px;font-weight:600;text-align:right;">Total</td>'+
-      '<td style="padding:6px 10px;font-size:13px;font-weight:700;text-align:right;">'+parseFloat(s.total_hours).toFixed(1)+'</td>'+
-      '</tr></tfoot></table>'+notesHtml+'</div>';
+    var detailHtml='<div style="display:none;background:var(--bg);border-top:1px solid var(--border-lt);">'+(expandGridHtml||'')+
+      (notesHtml||'')+'</div>';
     wrap.innerHTML=headerHtml+detailHtml;
     var header=wrap.querySelector('.ae');
     var detail=wrap.querySelector('.ae + div');
@@ -3117,9 +3142,16 @@ var refPanelOpen = false;
 function toggleRefPanel(){
   var panel = document.getElementById('ref-panel');
   if(!panel) return;
+  // Only show when app screen is active
+  if(!document.getElementById('screen-app').classList.contains('active')) return;
   refPanelOpen = !refPanelOpen;
   panel.style.display = refPanelOpen ? 'flex' : 'none';
   if(refPanelOpen) buildRefPanel();
+}
+
+function closeRefPanel(){
+  var panel = document.getElementById('ref-panel');
+  if(panel){panel.style.display='none';refPanelOpen=false;}
 }
 
 function buildRefPanel(){
@@ -3153,19 +3185,82 @@ function buildRefPanel(){
   }
 }
 
-// Close ref panel when clicking outside
-document.addEventListener('click',function(e){
-  if(refPanelOpen && !e.target.closest('#ref-panel') && !e.target.closest('button[onclick*="toggleRefPanel"]')){
-    var panel = document.getElementById('ref-panel');
-    if(panel){panel.style.display='none';refPanelOpen=false;}
+// Ref panel stays open until explicitly closed via X button
+
+// --- REF PANEL EDIT ---
+var REF_EDIT_KEY = 'scs_ref_custom';
+
+function getRefData(){
+  var saved = localStorage.getItem(REF_EDIT_KEY);
+  if(saved){
+    try{
+      var d = JSON.parse(saved);
+      return d;
+    }catch(e){}
   }
-});
+  return null;
+}
+
+function loadRefEdits(){
+  var clsTA = document.getElementById('ref-classes-edit');
+  var acctTA = document.getElementById('ref-accounts-edit');
+  if(!clsTA||!acctTA) return;
+  var clsLines = REF_CLASSES.map(function(c){
+    return c.parent ? c.name : c.code+' - '+c.name;
+  });
+  clsTA.value = clsLines.join('\n');
+  acctTA.value = REF_ACCOUNTS.join('\n');
+}
+
+function saveRefEdits(){
+  var clsTA = document.getElementById('ref-classes-edit');
+  var acctTA = document.getElementById('ref-accounts-edit');
+  var msg = document.getElementById('ref-edit-msg');
+  if(!clsTA||!acctTA) return;
+  var newClasses = [];
+  var clsLines2 = clsTA.value.split('\n');
+  clsLines2.forEach(function(line){
+    line = line.trim();
+    if(!line) return;
+    var isParent = /^[A-Z0-9\s\.\-\/&]+$/.test(line) && !line.match(/^\d+\s*-/);
+    if(isParent){
+      newClasses.push({code:line,name:line,parent:true});
+    } else {
+      var m = line.match(/^(\S+)\s*-\s*(.+)$/);
+      if(m) newClasses.push({code:m[1].trim(),name:m[2].trim(),parent:false});
+    }
+  });
+  var newAccounts = acctTA.value.split('\n').map(function(l){return l.trim();}).filter(Boolean);
+  localStorage.setItem(REF_EDIT_KEY, JSON.stringify({classes:newClasses,accounts:newAccounts}));
+  REF_CLASSES = newClasses;
+  REF_ACCOUNTS = newAccounts;
+  flash(msg,'Reference panel updated!','ok');
+}
+
+function resetRefEdits(){
+  if(!confirm('Reset to default class and account lists? Your custom changes will be lost.')) return;
+  localStorage.removeItem(REF_EDIT_KEY);
+  // Reload defaults from hardcoded arrays would require page refresh
+  // Instead just clear the textareas and note
+  var msg = document.getElementById('ref-edit-msg');
+  flash(msg,'Reset to defaults — please refresh the page to reload the original lists.','ok');
+}
+
+// On boot, load any saved ref customizations
+function initRefData(){
+  var saved = getRefData();
+  if(saved){
+    if(saved.classes && saved.classes.length) REF_CLASSES = saved.classes;
+    if(saved.accounts && saved.accounts.length) REF_ACCOUNTS = saved.accounts;
+  }
+}
 
 // --- BOOT ---
 async function boot(){
   try{
     sb=supabase.createClient(SB_URL,SB_KEY);
     setupNumpad();
+    initRefData();
     var cfg=getEJSConfig();
     if(cfg.pubKey)emailjs.init(cfg.pubKey);
     await initLogin();
