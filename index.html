@@ -272,7 +272,7 @@ input[type=number]{width:80px;text-align:right;}
         <div class="section-head" style="margin-bottom:.75rem;"><h2>My reimbursements</h2></div>
         <div class="card" style="padding:.75rem 1.5rem;">
           <table class="htable">
-            <thead><tr><th>Pay period</th><th>Items</th><th>Total</th><th>Status</th><th>Submitted</th></tr></thead>
+            <thead><tr><th>Pay period</th><th>Items</th><th>Total</th><th>Status</th><th>Submitted</th><th></th></tr></thead>
             <tbody id="reimb-hist-body"><tr><td colspan="5" class="loading">Loading...</td></tr></tbody>
           </table>
         </div>
@@ -1223,42 +1223,102 @@ async function deleteSubmission(id){
   renderApprovals();
 }
 
+function buildTSPrintGrid(entries, period){
+  // Build a grid view for printing
+  var pp = PP.find(function(p){return p.l===period;});
+  if(!pp) return '<p>Period not found</p>';
+  var start = new Date(pp.s+'T12:00:00');
+  var end = new Date(pp.e+'T12:00:00');
+  var days = [];
+  var cur = new Date(start);
+  while(cur<=end){days.push(new Date(cur));cur.setDate(cur.getDate()+1);}
+  var dayNames=['Su','Mo','Tu','We','Th','Fr','Sa'];
+  var months=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  var html='<table style="width:100%;border-collapse:collapse;font-size:10px;">';
+  // Header
+  html+='<thead><tr>';
+  html+='<th style="text-align:left;padding:4px 6px;border:1px solid #ccc;background:#EFF5EF;min-width:100px;">Class</th>';
+  html+='<th style="padding:4px 3px;border:1px solid #ccc;background:#EFF5EF;width:32px;">QB</th>';
+  days.forEach(function(d){
+    var isWe=d.getDay()===0||d.getDay()===6;
+    html+='<th style="padding:3px 1px;border:1px solid #ccc;background:'+(isWe?'#f0f0ee':'#EFF5EF')+';width:28px;text-align:center;">'+
+      '<div>'+dayNames[d.getDay()]+'</div><div style="font-weight:400;">'+d.getDate()+'</div></th>';
+  });
+  html+='<th style="padding:4px 5px;border:1px solid #ccc;background:#d8ecd8;width:36px;text-align:right;">Total</th>';
+  html+='</tr></thead><tbody>';
+  // Group by category
+  var cats = {};
+  entries.forEach(function(e){
+    var cat = e.category||'Other';
+    if(!cats[cat]) cats[cat]=[];
+    cats[cat].push(e);
+  });
+  Object.keys(cats).forEach(function(cat){
+    html+='<tr><td colspan="'+(days.length+3)+'" style="background:#f0f4f0;padding:3px 6px;font-size:9px;font-weight:700;text-transform:uppercase;color:#3D6B3D;border:1px solid #ccc;">'+cat+'</td></tr>';
+    cats[cat].forEach(function(e){
+      html+='<tr>';
+      html+='<td style="padding:3px 6px;border:1px solid #ddd;">'+e.name+'</td>';
+      html+='<td style="padding:3px 2px;border:1px solid #ddd;text-align:center;font-family:monospace;color:#888;font-size:9px;">'+e.code+'</td>';
+      var dayMap={};
+      (e.dayHours||[]).forEach(function(dh){dayMap[dh.date]=dh.hours;});
+      days.forEach(function(d){
+        var dateStr=d.toISOString().slice(0,10);
+        var h=dayMap[dateStr]||0;
+        var isWe=d.getDay()===0||d.getDay()===6;
+        html+='<td style="padding:3px 1px;border:1px solid #ddd;text-align:center;background:'+(isWe?'#f8f8f6':'')+';'+(h>0?'font-weight:600;':'color:#ccc;')+'">'+(h>0?h:'')+'</td>';
+      });
+      html+='<td style="padding:3px 5px;border:1px solid #ccc;text-align:right;font-weight:700;background:#e8f4e8;">'+parseFloat(e.hours||0).toFixed(1)+'</td>';
+      html+='</tr>';
+    });
+  });
+  // Daily totals row
+  html+='<tr style="border-top:2px solid #999;">';
+  html+='<td colspan="2" style="padding:4px 6px;font-weight:700;font-size:10px;border:1px solid #ccc;background:#f0f4f0;">Daily totals</td>';
+  var grandTotal=0;
+  days.forEach(function(d){
+    var dateStr=d.toISOString().slice(0,10);
+    var dayTotal=0;
+    entries.forEach(function(e){
+      (e.dayHours||[]).forEach(function(dh){if(dh.date===dateStr)dayTotal+=parseFloat(dh.hours)||0;});
+    });
+    grandTotal+=dayTotal;
+    html+='<td style="padding:4px 1px;border:1px solid #ccc;text-align:center;font-weight:700;background:#f0f4f0;">'+(dayTotal>0?dayTotal.toFixed(1):'')+'</td>';
+  });
+  html+='<td style="padding:4px 5px;border:1px solid #ccc;text-align:right;font-weight:700;font-size:12px;background:#d8ecd8;">'+grandTotal.toFixed(1)+'</td>';
+  html+='</tr></tbody></table>';
+  return html;
+}
+
 function printSingleTS(s){
-  var rows=s.entries.map(function(e){
-    return '<tr><td style="padding:5px 8px;border-bottom:1px solid #eee;">'+e.category+'</td>'+
-      '<td style="padding:5px 8px;border-bottom:1px solid #eee;">'+e.name+'</td>'+
-      '<td style="padding:5px 8px;font-family:monospace;font-size:11px;color:#999;border-bottom:1px solid #eee;">'+e.code+'</td>'+
-      '<td style="padding:5px 8px;text-align:right;font-weight:600;border-bottom:1px solid #eee;">'+e.hours+'</td></tr>';
-  }).join('');
-  var sc=s.status==='approved'?'#2A5F2A':s.status==='rejected'?'#8B2020':'#7A4A08';
   var win=window.open('','_blank');
   if(!win){alert('Please allow popups.');return;}
+  var gridHtml = buildTSPrintGrid(s.entries||[], s.period);
+  var sigHtml = s.employee_signature ?
+    '<img src="'+s.employee_signature+'" style="height:44px;max-width:180px;"/>' :
+    '<div style="border-bottom:1px solid #333;height:44px;width:180px;"></div>';
+  var sigDate = s.employee_sig_date ? s.employee_sig_date : '___________';
   win.document.write('<!DOCTYPE html><html><head><meta charset="UTF-8"/><title>Timesheet - '+s.staff_name+'</title>'+
-    '<style>body{font-family:Arial,sans-serif;font-size:13px;padding:2rem;max-width:700px;margin:0 auto;}'+
-    'table{width:100%;border-collapse:collapse;}th{font-size:9px;text-transform:uppercase;color:#666;text-align:left;padding:6px 8px;border-bottom:1px solid #B8D4B8;}'+
+    '<style>body{font-family:Arial,sans-serif;font-size:12px;padding:1.5rem;max-width:900px;margin:0 auto;}'+
+    '@page{size:landscape;}'+
     '@media print{.noprint{display:none;}}</style></head><body>'+
     '<div class="noprint" style="margin-bottom:1rem;display:flex;gap:10px;">'+
       '<button onclick="window.print()" style="padding:8px 16px;background:#2A5F2A;color:#fff;border:none;border-radius:6px;cursor:pointer;">Print</button>'+
       '<button onclick="window.close()" style="padding:8px 16px;border:1px solid #ccc;border-radius:6px;cursor:pointer;background:none;">Close</button>'+
     '</div>'+
-    '<h2 style="text-align:center;font-size:18px;margin-bottom:4px;">Sitka Conservation Society</h2>'+
-    '<div style="text-align:center;font-size:11px;color:#666;margin-bottom:1.5rem;text-transform:uppercase;letter-spacing:.08em;">Employee Time Sheet</div>'+
-    '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;background:#EFF5EF;border:1px solid #B8D4B8;border-radius:6px;padding:10px 14px;margin-bottom:1.5rem;">'+
-      '<div><div style="font-size:9px;font-weight:700;text-transform:uppercase;color:#2A5F2A;">Employee</div><div style="font-size:13px;font-weight:700;">'+s.staff_name+'</div></div>'+
-      '<div><div style="font-size:9px;font-weight:700;text-transform:uppercase;color:#2A5F2A;">Pay period</div><div style="font-size:13px;font-weight:700;">'+s.period+'</div></div>'+
-      '<div><div style="font-size:9px;font-weight:700;text-transform:uppercase;color:#2A5F2A;">Status</div><div style="font-size:13px;font-weight:700;color:'+sc+';">'+s.status.charAt(0).toUpperCase()+s.status.slice(1)+'</div></div>'+
+    '<h2 style="text-align:center;font-size:16px;margin-bottom:2px;">Sitka Conservation Society</h2>'+
+    '<div style="text-align:center;font-size:10px;color:#666;margin-bottom:1rem;text-transform:uppercase;letter-spacing:.08em;">Employee Time Sheet</div>'+
+    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;background:#EFF5EF;border:1px solid #B8D4B8;border-radius:6px;padding:8px 14px;margin-bottom:1rem;">'+
+      '<div><span style="font-size:9px;font-weight:700;text-transform:uppercase;color:#2A5F2A;">Employee: </span><strong>'+s.staff_name+'</strong></div>'+
+      '<div><span style="font-size:9px;font-weight:700;text-transform:uppercase;color:#2A5F2A;">Pay period: </span><strong>'+s.period+'</strong></div>'+
     '</div>'+
-    '<table><thead><tr><th>Category</th><th>Class</th><th>QB Code</th><th style="text-align:right;">Hours</th></tr></thead>'+
-    '<tbody>'+rows+'</tbody>'+
-    '<tfoot><tr><td colspan="3" style="padding:8px;font-weight:700;text-align:right;border-top:2px solid #B8D4B8;">Total hours</td>'+
-    '<td style="padding:8px;font-size:15px;font-weight:700;text-align:right;border-top:2px solid #B8D4B8;">'+parseFloat(s.total_hours).toFixed(1)+'</td></tr></tfoot></table>'+
-    (s.notes?'<div style="background:#f9f9f7;border:1px solid #e0ddd7;border-radius:4px;padding:8px;font-size:11px;margin-top:1rem;"><strong>Notes:</strong> '+s.notes+'</div>':'')+
-    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:24px;margin-top:2rem;">'+
-      '<div><div style="font-size:9px;font-weight:700;text-transform:uppercase;color:#666;margin-bottom:8px;">Employee signature</div>'+
-        '<div style="border-bottom:1px solid #333;height:44px;"></div>'+
-        '<div style="font-size:10px;color:#666;margin-top:4px;">Date: ___________</div></div>'+
-      '<div><div style="font-size:9px;font-weight:700;text-transform:uppercase;color:#666;margin-bottom:8px;">Supervisor signature</div>'+
-        '<div style="border-bottom:1px solid #333;height:44px;"></div>'+
+    gridHtml+
+    (s.notes?'<div style="background:#f9f9f7;border:1px solid #e0ddd7;border-radius:4px;padding:6px;font-size:10px;margin-top:.75rem;"><strong>Notes:</strong> '+s.notes+'</div>':'')+
+    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:24px;margin-top:1.5rem;">'+
+      '<div><div style="font-size:9px;font-weight:700;text-transform:uppercase;color:#666;margin-bottom:6px;">Employee signature</div>'+
+        sigHtml+
+        '<div style="font-size:10px;color:#666;margin-top:4px;">Date: '+sigDate+'</div></div>'+
+      '<div><div style="font-size:9px;font-weight:700;text-transform:uppercase;color:#666;margin-bottom:6px;">Supervisor signature</div>'+
+        '<div style="border-bottom:1px solid #333;height:44px;width:180px;"></div>'+
         '<div style="font-size:10px;color:#666;margin-top:4px;">Date: ___________</div></div>'+
     '</div></body></html>');
   win.document.close();
@@ -1940,10 +2000,10 @@ function addReimbRow(){
   reimbRowCount++;
   var n = reimbRowCount;
   var cats = allCats.length ? allCats : ['General','Projects/Classes','Leave'];
-  var clsOptions = allClasses.map(function(c){
+  var clsOptions = '<option value="other">Other (specify below)</option>';
+  clsOptions += allClasses.map(function(c){
     return '<option value="'+c.code+'">'+c.code+' - '+c.name+'</option>';
   }).join('');
-  clsOptions += '<option value="other">Other (specify)</option>';
   var row = document.createElement('tr');
   row.id = 'rrow-'+n;
   row.innerHTML =
@@ -2132,7 +2192,8 @@ async function renderReimbHistory(){
       '<td style="font-size:12px;">'+itemSummary.slice(0,60)+(itemSummary.length>60?'...':'')+'</td>'+
       '<td style="font-weight:600;">$'+parseFloat(s.total).toFixed(2)+'</td>'+
       '<td>'+statusCell+cancelReimbBtn+'</td>'+
-      '<td style="font-size:12px;color:var(--t2);">'+(s.submitted_at?s.submitted_at.slice(0,10):'--')+'</td>';
+      '<td style="font-size:12px;color:var(--t2);">'+(s.submitted_at?s.submitted_at.slice(0,10):'--')+'</td>'+
+      '<td><button class="btn btn-sm" onclick="printStaffReimb(this.dataset.id)" data-id="'+s.id+'" style="font-size:11px;">Print</button></td>';
     frag.appendChild(tr);
   });
   body.innerHTML = '';
@@ -2178,11 +2239,15 @@ async function renderReimbApprovals(){
     }).join('');
     var receiptHtml = '';
     if(s.receipt_urls&&s.receipt_urls.length){
-      receiptHtml = '<div style="padding:8px 10px;display:flex;flex-wrap:wrap;gap:8px;">';
+      receiptHtml = '<div style="padding:8px 10px;border-top:1px solid var(--border-lt);">';
+      receiptHtml += '<div style="font-size:10px;font-weight:600;text-transform:uppercase;color:var(--t3);margin-bottom:6px;">Receipts ('+s.receipt_urls.length+')</div>';
+      receiptHtml += '<div style="display:flex;flex-wrap:wrap;gap:8px;">';
       s.receipt_urls.forEach(function(url){
-        receiptHtml += '<a href="'+url+'" target="_blank"><img src="'+url+'" style="height:80px;width:80px;object-fit:cover;border-radius:6px;border:1px solid var(--border);"/></a>';
+        receiptHtml += '<a href="'+url+'" target="_blank" style="display:block;">'+
+          '<img src="'+url+'" style="height:90px;width:90px;object-fit:cover;border-radius:6px;border:1px solid var(--border);display:block;"/>'+
+          '</a>';
       });
-      receiptHtml += '</div>';
+      receiptHtml += '</div></div>';
     }
     wrap.innerHTML =
       '<div class="reimb-row-header" style="display:grid;grid-template-columns:90px 110px 1fr 60px 70px 260px;gap:8px;align-items:center;padding:9px 0;font-size:13px;cursor:pointer;">'+
@@ -2238,54 +2303,73 @@ async function deleteReimb(id){
   renderReimbApprovals();
 }
 
-function printSingleReimb(s){
+function buildReimbPrintHTML(s){
   var rows=s.items.map(function(e){
-    return '<tr><td style="padding:5px 8px;border-bottom:1px solid #eee;">'+e.description+'</td>'+
-      '<td style="padding:5px 8px;text-align:right;font-weight:600;border-bottom:1px solid #eee;">$'+parseFloat(e.cost).toFixed(2)+'</td>'+
-      '<td style="padding:5px 8px;border-bottom:1px solid #eee;">'+(e.account||'--')+'</td>'+
-      '<td style="padding:5px 8px;border-bottom:1px solid #eee;">'+(e.class_code||'--')+'</td></tr>';
+    return '<tr>'+
+      '<td style="padding:6px 8px;border-bottom:1px solid #eee;">'+e.description+'</td>'+
+      '<td style="padding:6px 8px;border-bottom:1px solid #eee;text-align:right;font-weight:600;">$'+parseFloat(e.cost).toFixed(2)+'</td>'+
+      '<td style="padding:6px 8px;border-bottom:1px solid #eee;">'+(e.account||'--')+'</td>'+
+      '<td style="padding:6px 8px;border-bottom:1px solid #eee;">'+(e.class_code||'--')+'</td></tr>';
   }).join('');
-  var sc=s.status==='approved'?'#2A5F2A':s.status==='rejected'?'#8B2020':'#7A4A08';
-  var receiptImgs='';
+  var empSig = s.employee_signature ?
+    '<img src="'+s.employee_signature+'" style="height:44px;max-width:180px;"/>' :
+    '<div style="border-bottom:1px solid #333;height:44px;width:180px;"></div>';
+  var sigDate = s.employee_sig_date || '___________';
+  // Receipts - one per page after main form
+  var receiptPages='';
   if(s.receipt_urls&&s.receipt_urls.length){
-    receiptImgs='<div style="margin-top:1.5rem;"><div style="font-size:9px;font-weight:700;text-transform:uppercase;color:#666;margin-bottom:8px;">Receipts</div>'+
-      '<div style="display:flex;flex-wrap:wrap;gap:8px;">';
-    s.receipt_urls.forEach(function(url){
-      receiptImgs+='<img src="'+url+'" style="height:140px;max-width:200px;object-fit:contain;border:1px solid #ccc;border-radius:4px;"/>';
+    s.receipt_urls.forEach(function(url, i){
+      receiptPages+=
+        '<div style="page-break-before:always;padding:1.5rem;">'+
+        '<h3 style="font-family:Arial,sans-serif;font-size:14px;margin-bottom:4px;">Receipt '+(i+1)+' of '+s.receipt_urls.length+'</h3>'+
+        '<div style="font-size:11px;color:#666;margin-bottom:1rem;">'+s.staff_name+' — '+s.period+'</div>'+
+        '<img src="'+url+'" style="max-width:100%;max-height:calc(100vh - 120px);object-fit:contain;border:1px solid #ccc;border-radius:4px;display:block;"/>'+
+        '</div>';
     });
-    receiptImgs+='</div></div>';
   }
+  return '<h2 style="text-align:center;font-size:18px;margin-bottom:4px;">Sitka Conservation Society</h2>'+
+    '<div style="text-align:center;font-size:11px;color:#666;margin-bottom:1.5rem;text-transform:uppercase;letter-spacing:.08em;">Reimbursement Request</div>'+
+    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;background:#EFF5EF;border:1px solid #B8D4B8;border-radius:6px;padding:10px 14px;margin-bottom:1.5rem;">'+
+      '<div><span style="font-size:9px;font-weight:700;text-transform:uppercase;color:#2A5F2A;">Employee: </span><strong>'+s.staff_name+'</strong></div>'+
+      '<div><span style="font-size:9px;font-weight:700;text-transform:uppercase;color:#2A5F2A;">Pay period: </span><strong>'+s.period+'</strong></div>'+
+    '</div>'+
+    '<table style="width:100%;border-collapse:collapse;margin-bottom:1rem;">'+
+      '<thead><tr style="background:#EFF5EF;">'+
+        '<th style="padding:6px 8px;font-size:9px;text-transform:uppercase;color:#666;text-align:left;border-bottom:1px solid #B8D4B8;">Item description</th>'+
+        '<th style="padding:6px 8px;font-size:9px;text-transform:uppercase;color:#666;text-align:right;border-bottom:1px solid #B8D4B8;">Cost</th>'+
+        '<th style="padding:6px 8px;font-size:9px;text-transform:uppercase;color:#666;text-align:left;border-bottom:1px solid #B8D4B8;">Account</th>'+
+        '<th style="padding:6px 8px;font-size:9px;text-transform:uppercase;color:#666;text-align:left;border-bottom:1px solid #B8D4B8;">Class</th>'+
+      '</tr></thead>'+
+      '<tbody>'+rows+'</tbody>'+
+      '<tfoot><tr>'+
+        '<td style="padding:8px;font-weight:700;border-top:2px solid #B8D4B8;">TOTAL</td>'+
+        '<td style="padding:8px;font-size:15px;font-weight:700;text-align:right;border-top:2px solid #B8D4B8;">$'+parseFloat(s.total).toFixed(2)+'</td>'+
+        '<td colspan="2" style="border-top:2px solid #B8D4B8;"></td>'+
+      '</tr></tfoot>'+
+    '</table>'+
+    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:24px;margin-top:1.5rem;">'+
+      '<div><div style="font-size:9px;font-weight:700;text-transform:uppercase;color:#666;margin-bottom:8px;">Employee signature</div>'+
+        empSig+
+        '<div style="font-size:10px;color:#666;margin-top:4px;">Date: '+sigDate+'</div></div>'+
+      '<div><div style="font-size:9px;font-weight:700;text-transform:uppercase;color:#666;margin-bottom:8px;">Executive Director</div>'+
+        '<div style="border-bottom:1px solid #333;height:44px;width:180px;"></div>'+
+        '<div style="font-size:10px;color:#666;margin-top:4px;">Date: ___________</div></div>'+
+    '</div>'+
+    receiptPages;
+}
+
+function printSingleReimb(s){
   var win=window.open('','_blank');
   if(!win){alert('Please allow popups.');return;}
   win.document.write('<!DOCTYPE html><html><head><meta charset="UTF-8"/><title>Reimbursement - '+s.staff_name+'</title>'+
-    '<style>body{font-family:Arial,sans-serif;font-size:13px;padding:2rem;max-width:700px;margin:0 auto;}'+
-    'table{width:100%;border-collapse:collapse;}th{font-size:9px;text-transform:uppercase;color:#666;text-align:left;padding:6px 8px;border-bottom:1px solid #B8D4B8;}'+
+    '<style>body{font-family:Arial,sans-serif;font-size:13px;padding:2rem;max-width:750px;margin:0 auto;}'+
     '@media print{.noprint{display:none;}}</style></head><body>'+
     '<div class="noprint" style="margin-bottom:1rem;display:flex;gap:10px;">'+
-      '<button onclick="window.print()" style="padding:8px 16px;background:#2A5F2A;color:#fff;border:none;border-radius:6px;cursor:pointer;">Print</button>'+
+      '<button onclick="window.print()" style="padding:8px 16px;background:#2A5F2A;color:#fff;border:none;border-radius:6px;cursor:pointer;">Print / Save PDF</button>'+
       '<button onclick="window.close()" style="padding:8px 16px;border:1px solid #ccc;border-radius:6px;cursor:pointer;background:none;">Close</button>'+
     '</div>'+
-    '<h2 style="text-align:center;font-size:18px;margin-bottom:4px;">Sitka Conservation Society</h2>'+
-    '<div style="text-align:center;font-size:11px;color:#666;margin-bottom:1.5rem;text-transform:uppercase;letter-spacing:.08em;">Reimbursement Request</div>'+
-    '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;background:#EFF5EF;border:1px solid #B8D4B8;border-radius:6px;padding:10px 14px;margin-bottom:1.5rem;">'+
-      '<div><div style="font-size:9px;font-weight:700;text-transform:uppercase;color:#2A5F2A;">Employee</div><div style="font-size:13px;font-weight:700;">'+s.staff_name+'</div></div>'+
-      '<div><div style="font-size:9px;font-weight:700;text-transform:uppercase;color:#2A5F2A;">Pay period</div><div style="font-size:13px;font-weight:700;">'+s.period+'</div></div>'+
-      '<div><div style="font-size:9px;font-weight:700;text-transform:uppercase;color:#2A5F2A;">Status</div><div style="font-size:13px;font-weight:700;color:'+sc+';">'+s.status.charAt(0).toUpperCase()+s.status.slice(1)+'</div></div>'+
-    '</div>'+
-    '<table><thead><tr><th>Item</th><th style="text-align:right;">Cost</th><th>Account</th><th>Class</th></tr></thead>'+
-    '<tbody>'+rows+'</tbody>'+
-    '<tfoot><tr><td style="padding:8px;font-weight:700;border-top:2px solid #B8D4B8;">TOTAL</td>'+
-    '<td style="padding:8px;font-size:15px;font-weight:700;text-align:right;border-top:2px solid #B8D4B8;">$'+parseFloat(s.total).toFixed(2)+'</td>'+
-    '<td colspan="2" style="border-top:2px solid #B8D4B8;"></td></tr></tfoot></table>'+
-    receiptImgs+
-    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:24px;margin-top:2rem;">'+
-      '<div><div style="font-size:9px;font-weight:700;text-transform:uppercase;color:#666;margin-bottom:8px;">Employee signature</div>'+
-        '<div style="border-bottom:1px solid #333;height:44px;"></div>'+
-        '<div style="font-size:10px;color:#666;margin-top:4px;">Date: ___________</div></div>'+
-      '<div><div style="font-size:9px;font-weight:700;text-transform:uppercase;color:#666;margin-bottom:8px;">Executive Director</div>'+
-        '<div style="border-bottom:1px solid #333;height:44px;"></div>'+
-        '<div style="font-size:10px;color:#666;margin-top:4px;">Date: ___________</div></div>'+
-    '</div></body></html>');
+    buildReimbPrintHTML(s)+
+    '</body></html>');
   win.document.close();
 }
 
@@ -2496,6 +2580,13 @@ function renderDashboardCalendar(year, month){
       'Pay day: <strong style="color:var(--green);">'+curPP.pay+'</strong></div>';
   }
   cal.innerHTML = html;
+}
+
+// --- STAFF PRINT REIMBURSEMENT ---
+async function printStaffReimb(id){
+  var r = await sb.from('reimbursements').select('*').eq('id',id).single();
+  if(!r.data){alert('Could not load reimbursement.');return;}
+  printSingleReimb(r.data);
 }
 
 // --- CANCEL & EDIT ---
