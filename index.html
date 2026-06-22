@@ -293,7 +293,8 @@ input[type=number]{width:80px;text-align:right;}
         <label class="fl" style="margin:0;">Filter:</label>
         <select id="f-staff" style="width:auto;font-size:13px;" onchange="renderApprovals()"><option value="">All staff</option></select>
         <select id="f-status" style="width:auto;font-size:13px;" onchange="renderApprovals()">
-          <option value="">All statuses</option><option value="pending">Pending</option>
+          <option value="pending">Pending</option>
+          <option value="">All statuses</option>
           <option value="approved">Approved</option><option value="rejected">Rejected</option>
         </select>
         <select id="f-period" style="width:auto;font-size:13px;" onchange="renderApprovals()"><option value="">All periods</option></select>
@@ -328,7 +329,7 @@ input[type=number]{width:80px;text-align:right;}
     </div>
 
     <div id="panel-classes" class="panel">
-      <div class="section-head"><h2>Manage classes</h2>
+      <div class="section-head"><h2>Manage timesheet classes</h2>
         <button class="btn btn-sm" onclick="showPanel('ref-edit',document.getElementById('ntab-ref-edit'))" style="color:var(--accent);border-color:var(--accent);">Edit reference panel</button>
       </div>
       <div class="card">
@@ -356,15 +357,26 @@ input[type=number]{width:80px;text-align:right;}
         <tbody id="class-list"><tr><td colspan="4" class="loading">Loading...</td></tr></tbody></table>
       </div>
       <div class="card">
-        <div style="font-size:15px;font-weight:600;margin-bottom:1rem;">Accounts</div>
-        <div style="display:grid;grid-template-columns:90px 1fr 80px;gap:10px;align-items:end;margin-bottom:10px;">
-          <div><label class="fl" for="na-code">Code</label><input type="text" id="na-code" placeholder="e.g. 6850"/></div>
-          <div><label class="fl" for="na-name">Account name</label><input type="text" id="na-name" placeholder="e.g. Supplies"/></div>
-          <div><label class="fl">&nbsp;</label><button class="btn btn-primary" onclick="addAccount()">+ Add</button></div>
+        <div style="font-size:15px;font-weight:600;margin-bottom:1rem;">Quick Reference Accounts / Classes</div>
+        <p style="font-size:13px;color:var(--t2);margin-bottom:1rem;line-height:1.6;">Edit the accounts and classes that appear in the Quick Reference panel. One entry per line.</p>
+        <!-- Inner tabs -->
+        <div style="display:flex;gap:0;border-bottom:2px solid var(--border);margin-bottom:1rem;">
+          <button id="qr-tab-acct" onclick="showQRTab('acct')" style="padding:8px 18px;font-size:13px;font-weight:500;border:none;background:none;cursor:pointer;border-bottom:2px solid var(--accent);margin-bottom:-2px;color:var(--accent);">Accounts</button>
+          <button id="qr-tab-cls" onclick="showQRTab('cls')" style="padding:8px 18px;font-size:13px;font-weight:500;border:none;background:none;cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-2px;color:var(--t2);">Classes</button>
         </div>
-        <div id="acct-msg" class="flash"></div>
-        <table class="ct" style="margin-top:.75rem;"><thead><tr><th>Code</th><th>Name</th><th></th></tr></thead>
-        <tbody id="acct-list"><tr><td colspan="3" class="loading">Loading...</td></tr></tbody></table>
+        <div id="qr-panel-acct">
+          <p style="font-size:12px;color:var(--t2);margin-bottom:8px;">Format: <code>CODE - Name</code> (one per line)</p>
+          <textarea id="ref-accounts-edit" rows="15" style="font-family:monospace;font-size:12px;line-height:1.6;width:100%;"></textarea>
+        </div>
+        <div id="qr-panel-cls" style="display:none;">
+          <p style="font-size:12px;color:var(--t2);margin-bottom:8px;">For category headers use ALL CAPS. For classes use: <code>CODE - Name</code></p>
+          <textarea id="ref-classes-edit" rows="15" style="font-family:monospace;font-size:12px;line-height:1.6;width:100%;"></textarea>
+        </div>
+        <div class="btn-row">
+          <button class="btn btn-primary" onclick="saveRefEdits()">Save changes</button>
+          <button class="btn" onclick="resetRefEdits()">Reset to defaults</button>
+        </div>
+        <div id="ref-edit-msg" class="flash"></div>
       </div>
     </div>
 
@@ -434,28 +446,6 @@ input[type=number]{width:80px;text-align:right;}
           <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.07em;color:var(--t2);margin-bottom:8px;">Pending reimbursements</div>
           <div id="dash-pending-reimb" style="font-size:36px;font-weight:700;color:var(--amber);">-</div>
         </div>
-      </div>
-    </div>
-
-    <!-- REF EDIT PANEL -->
-    <div id="panel-ref-edit" class="panel">
-      <div class="section-head"><h2>Edit reference panel</h2></div>
-      <div class="card">
-        <div style="font-size:14px;font-weight:600;margin-bottom:.5rem;">Class hierarchy</div>
-        <p style="font-size:13px;color:var(--t2);margin-bottom:1rem;line-height:1.6;">
-          One entry per line. For parent/header rows use ALL CAPS. For sub-classes use: <code>CODE - Name</code>
-        </p>
-        <textarea id="ref-classes-edit" rows="20" style="font-family:monospace;font-size:12px;line-height:1.6;"></textarea>
-        <div id="ref-edit-msg" class="flash"></div>
-      </div>
-      <div class="card">
-        <div style="font-size:14px;font-weight:600;margin-bottom:.5rem;">Accounts</div>
-        <p style="font-size:13px;color:var(--t2);margin-bottom:1rem;">One account per line: <code>CODE - Name</code></p>
-        <textarea id="ref-accounts-edit" rows="20" style="font-family:monospace;font-size:12px;line-height:1.6;"></textarea>
-      </div>
-      <div class="btn-row">
-        <button class="btn btn-primary" onclick="saveRefEdits()">Save changes</button>
-        <button class="btn" onclick="resetRefEdits()">Reset to defaults</button>
       </div>
     </div>
 
@@ -530,7 +520,8 @@ input[type=number]{width:80px;text-align:right;}
         <label class="fl" style="margin:0;">Filter:</label>
         <select id="rf-staff" style="width:auto;font-size:13px;" onchange="renderReimbApprovals()"><option value="">All staff</option></select>
         <select id="rf-status" style="width:auto;font-size:13px;" onchange="renderReimbApprovals()">
-          <option value="">All statuses</option><option value="pending">Pending</option>
+          <option value="pending">Pending</option>
+          <option value="">All statuses</option>
           <option value="approved">Approved</option><option value="rejected">Rejected</option>
         </select>
         <select id="rf-period" style="width:auto;font-size:13px;" onchange="renderReimbApprovals()"><option value="">All periods</option></select>
@@ -555,13 +546,16 @@ input[type=number]{width:80px;text-align:right;}
     <div style="font-weight:600;font-size:14px;color:var(--accent);">&#128203; Quick Reference</div>
     <button onclick="toggleRefPanel()" style="background:none;border:none;cursor:pointer;font-size:18px;color:var(--t2);line-height:1;">&times;</button>
   </div>
+  <!-- Inner tabs -->
+  <div style="display:flex;gap:0;border-bottom:1px solid var(--border);flex-shrink:0;">
+    <button id="rp-tab-cls" onclick="showRefPanelTab('cls')" style="flex:1;padding:8px;font-size:12px;font-weight:600;border:none;background:var(--accent-lt);cursor:pointer;color:var(--accent);border-bottom:2px solid var(--accent);">Classes</button>
+    <button id="rp-tab-acct" onclick="showRefPanelTab('acct')" style="flex:1;padding:8px;font-size:12px;font-weight:600;border:none;background:none;cursor:pointer;color:var(--t2);border-bottom:2px solid transparent;">Accounts</button>
+  </div>
   <div style="overflow-y:auto;flex:1;">
-    <div style="padding:10px 16px;border-bottom:1px solid var(--border-lt);">
-      <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--t2);margin-bottom:8px;">Classes</div>
+    <div id="rp-panel-cls" style="padding:10px 16px;">
       <div id="ref-classes-list" style="font-size:12px;"></div>
     </div>
-    <div style="padding:10px 16px;">
-      <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--t2);margin-bottom:8px;">Accounts</div>
+    <div id="rp-panel-acct" style="padding:10px 16px;display:none;">
       <div id="ref-accounts-list" style="font-size:12px;"></div>
     </div>
   </div>
@@ -783,7 +777,7 @@ async function enterApp(){
   document.getElementById('nav-uname').textContent=currentUser.name;
   var tabs=document.getElementById('nav-tabs');
   // Remove all dynamic tabs first
-  ['dashboard','timesheet','history','approvals','users','classes','notifications','reimb','reimb-approvals','ref-edit'].forEach(function(id){
+  ['dashboard','timesheet','history','approvals','users','classes','notifications','reimb','reimb-approvals'].forEach(function(id){
     var t=document.getElementById('ntab-'+id);if(t)t.remove();
   });
   // Build tab list based on role
@@ -794,7 +788,7 @@ async function enterApp(){
       {id:'approvals',label:'Timesheet approvals'},
       {id:'reimb-approvals',label:'Reimb. approvals'},
       {id:'users',label:'Staff'},
-      {id:'classes',label:'Classes'},
+      {id:'classes',label:'Accounts/Classes'},
       {id:'notifications',label:'Notifications'}
     ];
   } else {
@@ -839,9 +833,8 @@ function showPanel(id,btn){
   if(id==='history'){renderHistory();renderReimbHistory();}
   if(id==='approvals')renderApprovals();
   if(id==='users')renderUsers();
-  if(id==='classes'){renderClasses();renderCats();renderAccounts();}
+  if(id==='classes'){renderClasses();renderCats();loadRefEdits();}
   if(id==='notifications'){loadEJSConfig();renderReminderList();loadTpl();}
-  if(id==='ref-edit'){loadRefEdits();}
   if(id==='reimb'){
     initReimb();
     setTimeout(function(){
@@ -1160,15 +1153,18 @@ async function renderHistory(){
     var detail=s.entries.map(function(e){return e.name+': '+e.hours+'h';}).join(' / ');
     var rejRow='';
     if(s.status==='rejected'){
-      rejRow='<tr style="background:var(--red-lt)"><td colspan="5" style="padding:8px 10px;font-size:12px;color:var(--red)">';
-      rejRow+='<strong>Rejected:</strong> '+(s.rejection_reason||'No reason given');
-      rejRow+=' &nbsp;<button class="btn btn-sm btn-primary" onclick="resubmit(this.dataset.id)" data-id="'+s.id+'" style="margin-left:8px;font-size:11px;padding:3px 10px;">Resubmit</button></td></tr>';
+      rejRow='<tr style="background:var(--red-lt)"><td colspan="5" style="padding:8px 10px;font-size:12px;color:var(--red);display:flex;align-items:center;gap:10px;flex-wrap:wrap">';
+      rejRow+='<span><strong>Rejected:</strong> '+(s.rejection_reason||'No reason given')+'</span>';
+      rejRow+='<button class="btn btn-sm btn-primary" onclick="editTS(this.dataset.id)" data-id="'+s.id+'" style="font-size:11px;padding:3px 10px;">Edit</button>';
+      rejRow+='<button class="btn btn-sm btn-danger" onclick="deleteMyTS(this.dataset.id)" data-id="'+s.id+'" style="font-size:11px;padding:3px 10px;">Delete</button>';
+      rejRow+='</td></tr>';
     }
     var pendingRow='';
     if(s.status==='pending'){
-      pendingRow='<tr style="background:var(--amber-lt)"><td colspan="5" style="padding:8px 10px;font-size:12px;color:var(--amber);display:flex;align-items:center;gap:10px;">';
+      pendingRow='<tr style="background:var(--amber-lt)"><td colspan="5" style="padding:8px 10px;font-size:12px;color:var(--amber);display:flex;align-items:center;gap:10px;flex-wrap:wrap">';
       pendingRow+='<span>Awaiting approval</span>';
-      pendingRow+='<button class="btn btn-sm" onclick="cancelAndEditTS(this.dataset.id)" data-id="'+s.id+'" style="font-size:11px;padding:3px 10px;margin-left:auto;">Cancel &amp; edit</button>';
+      pendingRow+='<button class="btn btn-sm" onclick="editTS(this.dataset.id)" data-id="'+s.id+'" style="font-size:11px;padding:3px 10px;margin-left:auto;">Edit</button>';
+      pendingRow+='<button class="btn btn-sm btn-danger" onclick="deleteMyTS(this.dataset.id)" data-id="'+s.id+'" style="font-size:11px;padding:3px 10px;">Delete</button>';
       pendingRow+='</td></tr>';
     }
     var row='<tr>';
@@ -1515,7 +1511,7 @@ function batchPrint(){
       '</table>'+
       (s.notes?'<div style="background:#f9f9f7;border:1px solid #e0ddd7;border-radius:4px;padding:8px;font-size:11px;margin-bottom:1rem;"><strong>Notes:</strong> '+s.notes+'</div>':'')+
       '<div style="display:grid;grid-template-columns:1fr 1fr;gap:24px;margin-top:1.5rem;">'+
-        '<div><div style="font-size:9px;font-weight:700;text-transform:uppercase;color:#666;margin-bottom:8px;">Employee signature</div><div style="border-bottom:1px solid #333;height:44px;"></div><div style="font-size:10px;color:#666;margin-top:4px;">Date: ___________</div></div>'+
+        '<div><div style="font-size:9px;font-weight:700;text-transform:uppercase;color:#666;margin-bottom:8px;">Employee signature</div>'+(s.employee_signature?'<img src="'+s.employee_signature+'" style="height:44px;max-width:180px;"/><br/>':'<div style="border-bottom:1px solid #333;height:44px;"></div>')+'<div style="font-size:10px;color:#666;margin-top:4px;">Date: '+(s.employee_sig_date||'___________')+'</div></div>'+
         '<div><div style="font-size:9px;font-weight:700;text-transform:uppercase;color:#666;margin-bottom:8px;">Supervisor signature</div><div style="border-bottom:1px solid #333;height:44px;"></div><div style="font-size:10px;color:#666;margin-top:4px;">Date: ___________</div></div>'+
       '</div></div>';
   }).join('');
@@ -2324,10 +2320,12 @@ async function renderReimbHistory(){
     }
     var cancelReimbBtn='';
     if(s.status==='pending'){
-      cancelReimbBtn='<button class="btn btn-sm" onclick="cancelAndEditReimb(this.dataset.id)" data-id="'+s.id+'" style="font-size:11px;margin-top:4px;">Cancel &amp; edit</button>';
+      cancelReimbBtn='<button class="btn btn-sm" onclick="cancelAndEditReimb(this.dataset.id)" data-id="'+s.id+'" style="font-size:11px;margin-top:4px;">Edit</button>';
+      cancelReimbBtn+='<button class="btn btn-sm btn-danger" onclick="deleteMyReimb(this.dataset.id)" data-id="'+s.id+'" style="font-size:11px;margin-top:4px;margin-left:4px;">Delete</button>';
     }
     if(s.status==='rejected'){
-      cancelReimbBtn='<button class="btn btn-sm btn-primary" onclick="cancelAndEditReimb(this.dataset.id)" data-id="'+s.id+'" style="font-size:11px;margin-top:4px;">Edit &amp; resubmit</button>';
+      cancelReimbBtn='<button class="btn btn-sm btn-primary" onclick="cancelAndEditReimb(this.dataset.id)" data-id="'+s.id+'" style="font-size:11px;margin-top:4px;">Edit</button>';
+      cancelReimbBtn+='<button class="btn btn-sm btn-danger" onclick="deleteMyReimb(this.dataset.id)" data-id="'+s.id+'" style="font-size:11px;margin-top:4px;margin-left:4px;">Delete</button>';
     }
     tr.innerHTML =
       '<td><strong>'+s.period+'</strong></td>'+
@@ -2588,7 +2586,7 @@ function batchPrintReimb(){
       '</table>'+
       receiptImgs+
       '<div style="display:grid;grid-template-columns:1fr 1fr;gap:24px;margin-top:2rem;">'+
-        '<div><div style="font-size:9px;font-weight:700;text-transform:uppercase;color:#666;margin-bottom:8px;">Employee signature</div><div style="border-bottom:1px solid #333;height:44px;"></div><div style="font-size:10px;color:#666;margin-top:4px;">Date: ___________</div></div>'+
+        '<div><div style="font-size:9px;font-weight:700;text-transform:uppercase;color:#666;margin-bottom:8px;">Employee signature</div>'+(s.employee_signature?'<img src="'+s.employee_signature+'" style="height:44px;max-width:180px;"/><br/>':'<div style="border-bottom:1px solid #333;height:44px;"></div>')+'<div style="font-size:10px;color:#666;margin-top:4px;">Date: '+(s.employee_sig_date||'___________')+'</div></div>'+
         '<div><div style="font-size:9px;font-weight:700;text-transform:uppercase;color:#666;margin-bottom:8px;">Executive Director</div><div style="border-bottom:1px solid #333;height:44px;"></div><div style="font-size:10px;color:#666;margin-top:4px;">Date: ___________</div></div>'+
       '</div></div>';
   }).join('');
@@ -2729,7 +2727,7 @@ async function printStaffReimb(id){
 }
 
 // --- CANCEL & EDIT ---
-async function cancelAndEditTS(id){
+async function editTS(id){
   if(!confirm('Cancel this submission and return it to draft so you can edit and resubmit?'))return;
   // Get the submission data
   var r = await sb.from('submissions').select('*').eq('id',id).single();
@@ -2770,6 +2768,18 @@ async function cancelAndEditTS(id){
     }, 300);
   }, 200);
   renderHistory();
+}
+
+async function deleteMyTS(id){
+  if(!confirm('Are you sure you want to delete this timesheet? This cannot be undone.'))return;
+  await sb.from('submissions').delete().eq('id',id);
+  renderHistory();
+}
+
+async function deleteMyReimb(id){
+  if(!confirm('Are you sure you want to delete this reimbursement? This cannot be undone.'))return;
+  await sb.from('reimbursements').delete().eq('id',id);
+  renderReimbHistory();
 }
 
 async function cancelAndEditReimb(id){
@@ -2969,6 +2979,24 @@ function clearReimbDraft(){
   localStorage.removeItem(getReimbDraftKey());
 }
 
+function showRefPanelTab(tab){
+  var clsPanel=document.getElementById('rp-panel-cls');
+  var acctPanel=document.getElementById('rp-panel-acct');
+  var clsBtn=document.getElementById('rp-tab-cls');
+  var acctBtn=document.getElementById('rp-tab-acct');
+  if(!clsPanel||!acctPanel) return;
+  if(tab==='cls'){
+    clsPanel.style.display='block';acctPanel.style.display='none';
+    if(clsBtn){clsBtn.style.background='var(--accent-lt)';clsBtn.style.color='var(--accent)';clsBtn.style.borderBottomColor='var(--accent)';}
+    if(acctBtn){acctBtn.style.background='none';acctBtn.style.color='var(--t2)';acctBtn.style.borderBottomColor='transparent';}
+  } else {
+    clsPanel.style.display='none';acctPanel.style.display='block';
+    if(acctBtn){acctBtn.style.background='var(--accent-lt)';acctBtn.style.color='var(--accent)';acctBtn.style.borderBottomColor='var(--accent)';}
+    if(clsBtn){clsBtn.style.background='none';clsBtn.style.color='var(--t2)';clsBtn.style.borderBottomColor='transparent';}
+  }
+  buildRefPanel();
+}
+
 // --- ACCOUNTS ---
 async function renderAccounts(){
   var body = document.getElementById('acct-list');
@@ -3042,6 +3070,26 @@ async function deleteAccount(id,name){
   if(!confirm('Remove "'+name+'"?'))return;
   await sb.from('accounts').delete().eq('id',id);
   renderAccounts();
+}
+
+// --- QUICK REFERENCE INNER TABS ---
+function showQRTab(tab){
+  var acctPanel = document.getElementById('qr-panel-acct');
+  var clsPanel = document.getElementById('qr-panel-cls');
+  var acctBtn = document.getElementById('qr-tab-acct');
+  var clsBtn = document.getElementById('qr-tab-cls');
+  if(!acctPanel||!clsPanel) return;
+  if(tab==='acct'){
+    acctPanel.style.display='block';
+    clsPanel.style.display='none';
+    if(acctBtn){acctBtn.style.borderBottomColor='var(--accent)';acctBtn.style.color='var(--accent)';}
+    if(clsBtn){clsBtn.style.borderBottomColor='transparent';clsBtn.style.color='var(--t2)';}
+  } else {
+    acctPanel.style.display='none';
+    clsPanel.style.display='block';
+    if(clsBtn){clsBtn.style.borderBottomColor='var(--accent)';clsBtn.style.color='var(--accent)';}
+    if(acctBtn){acctBtn.style.borderBottomColor='transparent';acctBtn.style.color='var(--t2)';}
+  }
 }
 
 // --- REFERENCE PANEL ---
