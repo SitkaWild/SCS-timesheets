@@ -678,6 +678,8 @@ function showScreen(id){
   document.querySelectorAll('.screen').forEach(function(s){s.classList.remove('active');});
   var el=document.getElementById('screen-'+id);
   if(el)el.classList.add('active');
+  // Always hide ref panel when not on app screen
+  if(id!=='app') closeRefPanel();
 }
 
 // --- LOGIN ---
@@ -1288,6 +1290,14 @@ async function renderApprovals(){
       });
       expandGridHtml+='<td style="padding:4px 5px;border:1px solid var(--border);text-align:right;font-weight:700;font-size:12px;background:var(--accent-lt);color:var(--accent);">'+gt2.toFixed(1)+'</td>';
       expandGridHtml+='</tr></tbody></table></div>';
+    }
+    // Add signature to expanded view
+    if(s.employee_signature){
+      expandGridHtml+='<div style="padding:8px 12px;border-top:1px solid var(--border-lt);">'+
+        '<div style="font-size:10px;font-weight:600;text-transform:uppercase;color:var(--t3);margin-bottom:4px;">Employee signature</div>'+
+        '<img src="'+s.employee_signature+'" style="height:44px;max-width:200px;border:1px solid var(--border);border-radius:4px;background:#fff;padding:2px;"/>'+
+        (s.employee_sig_date?'<span style="font-size:11px;color:var(--t2);margin-left:10px;">'+s.employee_sig_date+'</span>':'')+
+      '</div>';
     }
     var notesHtml=s.notes?'<div style="padding:8px 10px;font-size:12px;color:var(--t2);border-top:1px solid var(--border-lt);"><strong>Notes:</strong> '+s.notes+'</div>':'';
     var actionBtns=s.status==='pending'?
@@ -1967,9 +1977,10 @@ async function renderReminderList(){
 }
 
 // --- SIGNATURES ---
+var sigStore = {}; // stores dataURL keyed by canvas id
+
 function initSig(id){
   var c=document.getElementById(id);if(!c)return;
-  // Ensure canvas has proper dimensions
   var rect=c.getBoundingClientRect();
   if(rect.width===0){setTimeout(function(){initSig(id);},100);return;}
   var ctx=c.getContext('2d'),drawing=false;
@@ -1979,17 +1990,19 @@ function initSig(id){
   function pos(e){var r=c.getBoundingClientRect();var s=e.touches?e.touches[0]:e;return{x:s.clientX-r.left,y:s.clientY-r.top};}
   c.addEventListener('mousedown',function(e){drawing=true;var p=pos(e);ctx.beginPath();ctx.moveTo(p.x,p.y);});
   c.addEventListener('mousemove',function(e){if(!drawing)return;var p=pos(e);ctx.lineTo(p.x,p.y);ctx.stroke();});
-  c.addEventListener('mouseup',function(){drawing=false;});
+  c.addEventListener('mouseup',function(){drawing=false;sigStore[id]=c.toDataURL('image/png');});
   c.addEventListener('mouseleave',function(){drawing=false;});
   c.addEventListener('touchstart',function(e){e.preventDefault();drawing=true;var p=pos(e);ctx.beginPath();ctx.moveTo(p.x,p.y);},{passive:false});
   c.addEventListener('touchmove',function(e){e.preventDefault();if(!drawing)return;var p=pos(e);ctx.lineTo(p.x,p.y);ctx.stroke();},{passive:false});
-  c.addEventListener('touchend',function(){drawing=false;});
+  c.addEventListener('touchend',function(){drawing=false;sigStore[id]=c.toDataURL('image/png');});
 }
-function clearSig(id){var c=document.getElementById(id);if(!c)return;c.getContext('2d').clearRect(0,0,c.width,c.height);}
+function clearSig(id){var c=document.getElementById(id);if(!c)return;c.getContext('2d').clearRect(0,0,c.width,c.height);delete sigStore[id];}
 function getSigURL(id){
+  // Prefer stored dataURL (set when user draws or uploads)
+  if(sigStore[id]) return sigStore[id];
+  // Fallback: read from canvas
   var c=document.getElementById(id);if(!c)return null;
   if(!c.width||!c.height)return null;
-  // Check if canvas has any non-transparent pixels
   var ctx=c.getContext('2d');
   var data=ctx.getImageData(0,0,c.width,c.height).data;
   var hasContent=false;
@@ -2008,6 +2021,7 @@ function loadSigFile(ev,id){
       ctx.clearRect(0,0,c.width,c.height);
       var sc=Math.min(w/img.width,h/img.height)*0.9;
       ctx.drawImage(img,(w-img.width*sc)/2,(h-img.height*sc)/2,img.width*sc,img.height*sc);
+      sigStore[id]=c.toDataURL('image/png');
     };img.src=e.target.result;
   };reader.readAsDataURL(file);
 }
