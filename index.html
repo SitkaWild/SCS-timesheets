@@ -1330,9 +1330,11 @@ async function renderApprovals(){
       if(allBtns[0])allBtns[0].addEventListener('click',function(e){e.stopPropagation();openApproveModal(sid,sname);});
       if(allBtns[1])allBtns[1].addEventListener('click',function(e){e.stopPropagation();doReject(sid,sobj);});
       if(allBtns[2])allBtns[2].addEventListener('click',function(e){e.stopPropagation();deleteSubmission(sid);});
+      if(allBtns[3])allBtns[3].addEventListener('click',function(e){e.stopPropagation();printSingleTS(sobj);});
     } else {
-      var delBtn=wrap.querySelector('.ab .btn-danger');
-      if(delBtn)delBtn.addEventListener('click',function(e){e.stopPropagation();deleteSubmission(sid);});
+      var nonPendBtns=wrap.querySelectorAll('.ab button');
+      if(nonPendBtns[0])nonPendBtns[0].addEventListener('click',function(e){e.stopPropagation();deleteSubmission(sid);});
+      if(nonPendBtns[1])nonPendBtns[1].addEventListener('click',function(e){e.stopPropagation();printSingleTS(sobj);});
     }
     frag.appendChild(wrap);
   });
