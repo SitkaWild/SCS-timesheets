@@ -364,25 +364,36 @@ input[type=number]{width:80px;text-align:right;}
           <button id="qr-tab-acct" onclick="showQRTab('acct')" style="padding:8px 18px;font-size:13px;font-weight:500;border:none;background:#fff;cursor:pointer;border-bottom:2px solid var(--accent);margin-bottom:-2px;color:var(--accent);">Accounts</button>
           <button id="qr-tab-cls" onclick="showQRTab('cls')" style="padding:8px 18px;font-size:13px;font-weight:500;border:none;background:transparent;cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-2px;color:var(--t2);">Classes</button>
         </div>
-        <!-- Accounts grid -->
+        <!-- Accounts panel - matches Classes layout -->
         <div id="qr-panel-acct">
-          <div style="display:grid;grid-template-columns:80px 1fr 90px 40px;gap:6px;margin-bottom:6px;font-size:10px;font-weight:600;text-transform:uppercase;color:var(--t3);">
-            <span>Code</span><span>Name</span><span>Type</span><span></span>
+          <div style="margin-bottom:1rem;">
+            <div style="font-size:14px;font-weight:600;margin-bottom:.75rem;">Add account</div>
+            <div style="display:grid;grid-template-columns:80px 1fr 120px 80px;gap:10px;align-items:end;">
+              <div><label class="fl" for="na-code">Code</label><input type="text" id="na-code" placeholder="e.g. 6850"/></div>
+              <div><label class="fl" for="na-name">Name</label><input type="text" id="na-name" placeholder="e.g. Supplies"/></div>
+              <div><label class="fl" for="na-type">Type</label>
+                <select id="na-type" style="width:100%;">
+                  <option value="header">Header</option>
+                  <option value="subheader">Sub-header</option>
+                  <option value="subheader2" selected>Sub-header 2</option>
+                </select>
+              </div>
+              <div><label class="fl">&nbsp;</label><button class="btn btn-primary" onclick="addAccount()">+ Add</button></div>
+            </div>
+            <div id="acct-msg" class="flash"></div>
           </div>
-          <div id="qr-acct-rows"></div>
-          <button class="btn btn-sm" onclick="addQRAcctRow()" style="margin-top:8px;">+ Add account</button>
+          <table class="ct">
+            <thead><tr><th>Code</th><th>Name</th><th>Type</th><th></th></tr></thead>
+            <tbody id="acct-list"><tr><td colspan="4" class="loading">Loading...</td></tr></tbody>
+          </table>
         </div>
-        <!-- Classes grid -->
+        <!-- Classes panel -->
         <div id="qr-panel-cls" style="display:none;">
-          <div style="display:grid;grid-template-columns:80px 1fr 100px 40px;gap:6px;margin-bottom:6px;font-size:10px;font-weight:600;text-transform:uppercase;color:var(--t3);">
-            <span>Code</span><span>Name</span><span>Type</span><span></span>
-          </div>
           <div id="qr-cls-rows"></div>
-          <button class="btn btn-sm" onclick="addQRClsRow()" style="margin-top:8px;">+ Add class</button>
-        </div>
-        <div class="btn-row" style="margin-top:1rem;">
-          <button class="btn btn-primary" onclick="saveQRGrid()">Save changes</button>
-          <button class="btn" onclick="resetRefEdits()">Reset to defaults</button>
+          <button class="btn btn-sm" onclick="addQRClsRow()" style="margin-top:8px;">+ Add class entry</button>
+          <div class="btn-row" style="margin-top:1rem;">
+            <button class="btn btn-primary" onclick="saveQRGrid()">Save class changes</button>
+          </div>
         </div>
         <div id="ref-edit-msg" class="flash"></div>
       </div>
@@ -830,7 +841,7 @@ async function enterApp(){
   var cfg=getEJSConfig();
   if(cfg.pubKey)emailjs.init(cfg.pubKey);
 }
-function logout(){currentUser=null;pinBuf='';closeRefPanel();initLogin();}
+function logout(){currentUser=null;pinBuf='';closeRefPanel();draftReceiptUrls=[];initLogin();}
 
 // --- PANELS ---
 function showPanel(id,btn){
@@ -843,13 +854,26 @@ function showPanel(id,btn){
   if(id==='history'){renderHistory();renderReimbHistory();}
   if(id==='approvals')renderApprovals();
   if(id==='users')renderUsers();
-  if(id==='classes'){renderClasses();renderCats();loadRefEdits();}
+  if(id==='classes'){renderClasses();renderCats();renderAccounts();}
   if(id==='notifications'){loadEJSConfig();renderReminderList();loadTpl();}
   if(id==='reimb'){
     initReimb();
     setTimeout(function(){
       initSig('sig-reimb');
-      if(loadReimbDraft()){
+      var hasDraft = loadReimbDraft();
+      // Restore receipt previews from localStorage
+      if(loadDraftReceiptUrls() && draftReceiptUrls.length){
+        var preview = document.getElementById('receipt-preview');
+        if(preview){
+          preview.innerHTML='';
+          draftReceiptUrls.forEach(function(d){
+            var ext=d.url.split('.').pop().toLowerCase();
+            var type=['jpg','jpeg','png','gif','webp','heic'].indexOf(ext)>=0?'image/'+ext:'application/octet-stream';
+            addReceiptPreview(preview, d.url, d.path, d.path.split('/').pop(), type);
+          });
+        }
+      }
+      if(hasDraft || draftReceiptUrls.length){
         var msg=document.getElementById('reimb-msg');
         if(msg){msg.textContent='Draft restored! Review and submit when ready.';msg.className='flash ok';msg.style.display='flex';setTimeout(function(){msg.style.display='none';},4000);}
       }
@@ -2219,6 +2243,28 @@ function getReimbItems(){
 
 var draftReceiptUrls = []; // tracks URLs uploaded to drafts folder
 
+function getDraftReceiptKey(){return 'scs_draft_receipts_'+( currentUser ? currentUser.id : 'anon');}
+
+function saveDraftReceiptUrls(){
+  try{localStorage.setItem(getDraftReceiptKey(), JSON.stringify(draftReceiptUrls));}catch(e){}
+}
+
+function loadDraftReceiptUrls(){
+  try{
+    var saved = localStorage.getItem(getDraftReceiptKey());
+    if(saved){
+      draftReceiptUrls = JSON.parse(saved)||[];
+      return true;
+    }
+  }catch(e){}
+  return false;
+}
+
+function clearDraftReceiptUrls(){
+  draftReceiptUrls=[];
+  try{localStorage.removeItem(getDraftReceiptKey());}catch(e){}
+}
+
 async function previewReceipts(event){
   var files = Array.from(event.target.files);
   if(!files.length) return;
@@ -2233,6 +2279,7 @@ async function previewReceipts(event){
       var urlData = sb.storage.from('receipts').getPublicUrl(draftPath);
       var url = urlData.data.publicUrl;
       draftReceiptUrls.push({url:url, path:draftPath});
+      saveDraftReceiptUrls();
       addReceiptPreview(preview, url, draftPath, file.name, file.type);
     }
   }
@@ -2261,7 +2308,7 @@ function addReceiptPreview(preview, url, path, name, type){
   del.addEventListener('click',function(){
     // Remove from draftReceiptUrls
     draftReceiptUrls = draftReceiptUrls.filter(function(d){return d.path!==path;});
-    // Delete from storage
+    saveDraftReceiptUrls();
     sb.storage.from('receipts').remove([path]);
     wrap.remove();
   });
@@ -2326,7 +2373,7 @@ async function submitReimb(){
 function clearReimb(){
   document.getElementById('reimb-rows').innerHTML = '';
   reimbFiles = [];
-  draftReceiptUrls = [];
+  clearDraftReceiptUrls();
   reimbRowCount = 0;
   document.getElementById('receipt-preview').innerHTML = '';
   document.getElementById('receipt-files').value = '';
@@ -2850,7 +2897,7 @@ async function cancelAndEditReimb(id){
     if(s.receipt_urls && s.receipt_urls.length){
       var preview = document.getElementById('receipt-preview');
       preview.innerHTML = '';
-      draftReceiptUrls = [];
+      clearDraftReceiptUrls();
       s.receipt_urls.forEach(function(url){
         var path = url.split('/receipts/')[1] || url;
         draftReceiptUrls.push({url:url, path:path});
@@ -3074,11 +3121,12 @@ async function renderAccounts(){
 async function addAccount(){
   var code = document.getElementById('na-code').value.trim();
   var name = document.getElementById('na-name').value.trim();
+  var type = document.getElementById('na-type').value;
   var msg = document.getElementById('acct-msg');
   if(!code||!name){flash(msg,'Please enter both code and name.','err');return;}
-  var r = await sb.from('accounts').select('sort_order').order('sort_order',{ascending:false}).limit(1);
-  var maxO = r.data&&r.data.length ? (r.data[0].sort_order||0)+1 : 1;
-  var ins = await sb.from('accounts').insert({code:code,name:name,sort_order:maxO});
+  // sort_order based on numeric code for correct ordering
+  var numCode = parseInt(code)||0;
+  var ins = await sb.from('accounts').insert({code:code,name:name,type:type,sort_order:numCode});
   if(ins.error){flash(msg,ins.error.message,'err');return;}
   document.getElementById('na-code').value='';
   document.getElementById('na-name').value='';
@@ -3089,12 +3137,18 @@ async function addAccount(){
 function inlineEditAccount(id){
   var row = document.getElementById('acrow-'+id);
   if(!row)return;
-  var cells = row.querySelectorAll('td');
-  var oldCode = cells[0].textContent;
-  var oldName = cells[1].textContent;
+  var a = allAccountsData.find(function(x){return x.id===id;});
+  var oldCode = a ? a.code : '';
+  var oldName = a ? a.name : '';
+  var oldType = a ? (a.type||'header') : 'header';
+  var typeOpts = ['header','subheader','subheader2'].map(function(t){
+    var labels={header:'Header',subheader:'Sub-header',subheader2:'Sub-header 2'};
+    return '<option value="'+t+'"'+(t===oldType?' selected':'')+'>'+labels[t]+'</option>';
+  }).join('');
   row.innerHTML =
-    '<td><input type="text" id="ae-code" value="'+oldCode+'" style="width:70px;font-size:13px;"/></td>'+
-    '<td><input type="text" id="ae-name" value="'+oldName+'" style="font-size:13px;"/></td>'+
+    '<td><input type="text" id="ae-code" value="'+oldCode+'" style="width:60px;font-size:12px;"/></td>'+
+    '<td><input type="text" id="ae-name" value="'+oldName.replace(/"/g,'&quot;')+'" style="font-size:13px;"/></td>'+
+    '<td><select id="ae-type" style="font-size:11px;padding:3px;">'+typeOpts+'</select></td>'+
     '<td style="white-space:nowrap;">'+
       '<button class="btn btn-sm btn-primary" onclick="saveAccountEdit(this.dataset.aid)" data-aid="'+id+'">Save</button> '+
       '<button class="btn btn-sm" onclick="renderAccounts()">Cancel</button>'+
@@ -3105,8 +3159,10 @@ function inlineEditAccount(id){
 async function saveAccountEdit(id){
   var code = document.getElementById('ae-code').value.trim();
   var name = document.getElementById('ae-name').value.trim();
+  var type = document.getElementById('ae-type') ? document.getElementById('ae-type').value : 'subheader2';
   if(!code||!name){alert('Code and name required.');return;}
-  var r = await sb.from('accounts').update({code:code,name:name}).eq('id',id);
+  var numCode = parseInt(code)||0;
+  var r = await sb.from('accounts').update({code:code,name:name,type:type,sort_order:numCode}).eq('id',id);
   if(r.error){alert(r.error.message);return;}
   renderAccounts();
   flash(document.getElementById('acct-msg'),'Account updated.','ok');
@@ -3396,84 +3452,84 @@ var REF_CLASSES = [
 ];
 
 var REF_ACCOUNTS = [
-  {code:'4000',name:'Grant Income',type:'item'},
-  {code:'4001',name:'Federal Reimbursement Funds',type:'item'},
-  {code:'4300',name:'Individual Contributions',type:'item'},
-  {code:'4305',name:'Individual Donation',type:'item'},
-  {code:'4310',name:'Major Donation',type:'item'},
-  {code:'4315',name:'Monthly Donation',type:'item'},
-  {code:'4320',name:'Membership Dues',type:'item'},
-  {code:'4321',name:'New Member',type:'item'},
-  {code:'4400',name:'Fundraising/Special Events',type:'item'},
-  {code:'4450',name:'Program (Service/Rental) Income',type:'item'},
-  {code:'4500',name:'Retail Donations',type:'item'},
-  {code:'4501',name:'Artist Income',type:'item'},
-  {code:'5000',name:'Merchandise Expense',type:'item'},
-  {code:'5001',name:'Artist Donation Payment',type:'item'},
+  {code:'4000',name:'Grant Income',type:'header'},
+  {code:'4001',name:'Federal Reimbursement Funds',type:'header'},
+  {code:'4300',name:'Individual Contributions',type:'header'},
+  {code:'4305',name:'Individual Donation',type:'header'},
+  {code:'4310',name:'Major Donation',type:'header'},
+  {code:'4315',name:'Monthly Donation',type:'header'},
+  {code:'4320',name:'Membership Dues',type:'header'},
+  {code:'4321',name:'New Member',type:'header'},
+  {code:'4400',name:'Fundraising/Special Events',type:'header'},
+  {code:'4450',name:'Program (Service/Rental) Income',type:'header'},
+  {code:'4500',name:'Retail Donations',type:'header'},
+  {code:'4501',name:'Artist Income',type:'header'},
+  {code:'5000',name:'Merchandise Expense',type:'header'},
+  {code:'5001',name:'Artist Donation Payment',type:'header'},
   {code:'6000',name:'Personnel Expense',type:'header'},
   {code:'6100',name:'Payroll Expenses',type:'subheader'},
-  {code:'6101',name:'Director Salary',type:'account'},
-  {code:'6110',name:'Interns',type:'account'},
-  {code:'6120',name:'Permanent Wages',type:'account'},
-  {code:'6130',name:'Temporary Employees',type:'account'},
-  {code:'6199',name:'Direct Deposit Fees',type:'account'},
+  {code:'6101',name:'Director Salary',type:'subheader2'},
+  {code:'6110',name:'Interns',type:'subheader2'},
+  {code:'6120',name:'Permanent Wages',type:'subheader2'},
+  {code:'6130',name:'Temporary Employees',type:'subheader2'},
+  {code:'6199',name:'Direct Deposit Fees',type:'subheader2'},
   {code:'6200',name:'Payroll Tax Expense',type:'subheader'},
   {code:'6300',name:'Employee Benefits',type:'subheader'},
   {code:'6400',name:'Workers Comp Insurance',type:'subheader'},
   {code:'6500',name:'Events & Outreach',type:'header'},
-  {code:'6510',name:'Advertising',type:'account'},
-  {code:'6520',name:'Boat Trips',type:'account'},
+  {code:'6510',name:'Advertising',type:'subheader2'},
+  {code:'6520',name:'Boat Trips',type:'subheader2'},
   {code:'6530',name:'Meeting & Event Expense',type:'subheader'},
-  {code:'6531',name:'Organizing Meeting',type:'account'},
-  {code:'6532',name:'Community Meeting',type:'account'},
-  {code:'6533',name:'Organizational Meeting',type:'account'},
-  {code:'6534',name:'Conference Attendance',type:'account'},
+  {code:'6531',name:'Organizing Meeting',type:'subheader2'},
+  {code:'6532',name:'Community Meeting',type:'subheader2'},
+  {code:'6533',name:'Organizational Meeting',type:'subheader2'},
+  {code:'6534',name:'Conference Attendance',type:'subheader2'},
   {code:'6540',name:'Special Events Expense',type:'subheader'},
-  {code:'6542',name:'Contract',type:'account'},
-  {code:'6543',name:'Special Event Exp/Rent',type:'account'},
+  {code:'6542',name:'Contract',type:'subheader2'},
+  {code:'6543',name:'Special Event Exp/Rent',type:'subheader2'},
   {code:'6600',name:'Office and Rent',type:'header'},
-  {code:'6601',name:'Rent & Utilities',type:'account'},
-  {code:'6610',name:'General Office Operations',type:'account'},
-  {code:'6620',name:'Software & Website',type:'account'},
-  {code:'6630',name:'Dues & Subscriptions',type:'account'},
-  {code:'6640',name:'Equipment & Maint.',type:'account'},
-  {code:'6650',name:'Liability Insurance',type:'account'},
-  {code:'6651',name:'D&O Insurance',type:'account'},
-  {code:'6655',name:'Property Insurance',type:'account'},
-  {code:'6660',name:'Office Repair & Maint.',type:'account'},
-  {code:'6670',name:'Postage',type:'account'},
-  {code:'6680',name:'Printing & Copying',type:'account'},
-  {code:'6685',name:'Charges / Fees',type:'account'},
-  {code:'6690',name:'Office Supplies',type:'account'},
-  {code:'6695',name:'Telephone/Internet',type:'account'},
+  {code:'6601',name:'Rent & Utilities',type:'subheader2'},
+  {code:'6610',name:'General Office Operations',type:'subheader2'},
+  {code:'6620',name:'Software & Website',type:'subheader2'},
+  {code:'6630',name:'Dues & Subscriptions',type:'subheader2'},
+  {code:'6640',name:'Equipment & Maint.',type:'subheader2'},
+  {code:'6650',name:'Liability Insurance',type:'subheader2'},
+  {code:'6651',name:'D&O Insurance',type:'subheader2'},
+  {code:'6655',name:'Property Insurance',type:'subheader2'},
+  {code:'6660',name:'Office Repair & Maint.',type:'subheader2'},
+  {code:'6670',name:'Postage',type:'subheader2'},
+  {code:'6680',name:'Printing & Copying',type:'subheader2'},
+  {code:'6685',name:'Charges / Fees',type:'subheader2'},
+  {code:'6690',name:'Office Supplies',type:'subheader2'},
+  {code:'6695',name:'Telephone/Internet',type:'subheader2'},
   {code:'6700',name:'Professional Fees',type:'header'},
-  {code:'6710',name:'Accounting',type:'account'},
-  {code:'6720',name:'Environmental',type:'account'},
-  {code:'6730',name:'Graphic Design',type:'account'},
-  {code:'6740',name:'Media & Outreach',type:'account'},
-  {code:'6750',name:'Other Professional Fee',type:'account'},
-  {code:'6760',name:'Legal',type:'account'},
-  {code:'6780',name:'Newsletter',type:'account'},
+  {code:'6710',name:'Accounting',type:'subheader2'},
+  {code:'6720',name:'Environmental',type:'subheader2'},
+  {code:'6730',name:'Graphic Design',type:'subheader2'},
+  {code:'6740',name:'Media & Outreach',type:'subheader2'},
+  {code:'6750',name:'Other Professional Fee',type:'subheader2'},
+  {code:'6760',name:'Legal',type:'subheader2'},
+  {code:'6780',name:'Newsletter',type:'subheader2'},
   {code:'6800',name:'Program Support',type:'header'},
-  {code:'6805',name:'Grant Expense/Matching',type:'account'},
+  {code:'6805',name:'Grant Expense/Matching',type:'subheader2'},
   {code:'6810',name:'Fieldwork Exp',type:'subheader'},
-  {code:'6812',name:'Fieldwork Equip/Supplies',type:'account'},
-  {code:'6813',name:'Fieldwork Support/Contract',type:'account'},
-  {code:'6820',name:'Fundraising',type:'account'},
-  {code:'6830',name:'Training',type:'account'},
+  {code:'6812',name:'Fieldwork Equip/Supplies',type:'subheader2'},
+  {code:'6813',name:'Fieldwork Support/Contract',type:'subheader2'},
+  {code:'6820',name:'Fundraising',type:'subheader2'},
+  {code:'6830',name:'Training',type:'subheader2'},
   {code:'6840',name:'Travel Expense',type:'subheader'},
-  {code:'6842',name:'Travel Reimb/Exp',type:'account'},
-  {code:'6843',name:'Per Diem',type:'account'},
-  {code:'6850',name:'Supplies',type:'account'},
-  {code:'6860',name:'Volunteer Stipends',type:'account'},
-  {code:'6900',name:'Depreciation Expense',type:'item'},
-  {code:'4900',name:'Indirect Transfer',type:'item'},
-  {code:'4920',name:'Overhead Transfer',type:'item'},
-  {code:'7000',name:'Interest Income',type:'item'},
-  {code:'7100',name:'Local Invest. Int. Earned',type:'item'},
-  {code:'7900',name:'Unrealized Gain/Loss',type:'item'},
-  {code:'7010',name:'Donation/Support Given',type:'item'},
-  {code:'7500',name:'Overhead/Indirect Txfer DEBIT',type:'item'}
+  {code:'6842',name:'Travel Reimb/Exp',type:'subheader2'},
+  {code:'6843',name:'Per Diem',type:'subheader2'},
+  {code:'6850',name:'Supplies',type:'subheader2'},
+  {code:'6860',name:'Volunteer Stipends',type:'subheader2'},
+  {code:'6900',name:'Depreciation Expense',type:'header'},
+  {code:'4900',name:'Indirect Transfer',type:'header'},
+  {code:'4920',name:'Overhead Transfer',type:'header'},
+  {code:'7000',name:'Interest Income',type:'header'},
+  {code:'7100',name:'Local Invest. Int. Earned',type:'header'},
+  {code:'7900',name:'Unrealized Gain/Loss',type:'header'},
+  {code:'7010',name:'Donation/Support Given',type:'header'},
+  {code:'7500',name:'Overhead/Indirect Txfer DEBIT',type:'header'}
 ];
 
 var refPanelOpen = false;
@@ -3521,7 +3577,7 @@ function buildRefPanel(){
           '<span style="font-family:monospace;color:var(--t3);min-width:36px;font-size:11px;">'+parts[0]+'</span>'+
           '<span style="color:var(--text);">'+parts.slice(1).join(' - ')+'</span></div>';
       }
-      var t = a.type||'item';
+      var t = a.type||'header';
       if(t==='header'){
         return '<div style="font-weight:700;color:var(--accent);margin-top:10px;margin-bottom:2px;font-size:12px;">'+
           a.code+' - '+a.name+'</div>';
@@ -3529,14 +3585,10 @@ function buildRefPanel(){
         return '<div style="display:flex;gap:6px;padding:2px 0 2px 10px;font-weight:600;">'+
           '<span style="font-family:monospace;color:var(--t3);min-width:36px;font-size:11px;">'+a.code+'</span>'+
           '<span style="color:var(--text);">'+a.name+'</span></div>';
-      } else if(t==='account'){
+      } else {
         return '<div style="display:flex;gap:6px;padding:2px 0 2px 20px;">'+
           '<span style="font-family:monospace;color:var(--t3);min-width:36px;font-size:11px;">'+a.code+'</span>'+
           '<span style="color:var(--t2);">'+a.name+'</span></div>';
-      } else {
-        return '<div style="display:flex;gap:6px;padding:2px 0;">'+
-          '<span style="font-family:monospace;color:var(--t3);min-width:36px;font-size:11px;">'+a.code+'</span>'+
-          '<span style="color:var(--text);">'+a.name+'</span></div>';
       }
     }).join('');
     acctList.innerHTML = html2;
