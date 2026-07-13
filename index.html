@@ -284,8 +284,9 @@ input[type=number]{width:80px;text-align:right;}
 
     <div id="panel-approvals" class="panel">
       <div class="section-head"><h2>Submissions</h2>
-        <div style="display:flex;gap:8px;">
+        <div style="display:flex;gap:8px;flex-wrap:wrap;">
           <button class="btn btn-sm" onclick="toggleRefPanel()" style="color:var(--accent);border-color:var(--accent);">&#128203; Reference</button>
+          <button class="btn btn-sm btn-primary" onclick="approveAllVisible()">Approve all visible</button>
           <button class="btn" onclick="exportAllCSV()">Export all CSV</button>
         </div>
       </div>
@@ -358,22 +359,29 @@ input[type=number]{width:80px;text-align:right;}
       </div>
       <div class="card">
         <div style="font-size:15px;font-weight:600;margin-bottom:1rem;">Quick Reference Accounts / Classes</div>
-        <p style="font-size:13px;color:var(--t2);margin-bottom:1rem;line-height:1.6;">Edit the accounts and classes that appear in the Quick Reference panel. One entry per line.</p>
         <!-- Inner tabs -->
         <div style="display:flex;gap:0;border-bottom:2px solid var(--border);margin-bottom:1rem;">
-          <button id="qr-tab-acct" onclick="showQRTab('acct')" style="padding:8px 18px;font-size:13px;font-weight:500;border:none;background:none;cursor:pointer;border-bottom:2px solid var(--accent);margin-bottom:-2px;color:var(--accent);">Accounts</button>
+          <button id="qr-tab-acct" onclick="showQRTab('acct')" style="padding:8px 18px;font-size:13px;font-weight:500;border:none;background:var(--surface);cursor:pointer;border-bottom:2px solid var(--accent);margin-bottom:-2px;color:var(--accent);">Accounts</button>
           <button id="qr-tab-cls" onclick="showQRTab('cls')" style="padding:8px 18px;font-size:13px;font-weight:500;border:none;background:none;cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-2px;color:var(--t2);">Classes</button>
         </div>
+        <!-- Accounts grid -->
         <div id="qr-panel-acct">
-          <p style="font-size:12px;color:var(--t2);margin-bottom:8px;">Format: <code>CODE - Name</code> (one per line)</p>
-          <textarea id="ref-accounts-edit" rows="15" style="font-family:monospace;font-size:12px;line-height:1.6;width:100%;"></textarea>
+          <div style="display:grid;grid-template-columns:80px 1fr 40px;gap:6px;margin-bottom:6px;font-size:10px;font-weight:600;text-transform:uppercase;color:var(--t3);">
+            <span>Code</span><span>Name</span><span></span>
+          </div>
+          <div id="qr-acct-rows"></div>
+          <button class="btn btn-sm" onclick="addQRAcctRow()" style="margin-top:8px;">+ Add account</button>
         </div>
+        <!-- Classes grid -->
         <div id="qr-panel-cls" style="display:none;">
-          <p style="font-size:12px;color:var(--t2);margin-bottom:8px;">For category headers use ALL CAPS. For classes use: <code>CODE - Name</code></p>
-          <textarea id="ref-classes-edit" rows="15" style="font-family:monospace;font-size:12px;line-height:1.6;width:100%;"></textarea>
+          <div style="display:grid;grid-template-columns:80px 1fr 100px 40px;gap:6px;margin-bottom:6px;font-size:10px;font-weight:600;text-transform:uppercase;color:var(--t3);">
+            <span>Code</span><span>Name</span><span>Type</span><span></span>
+          </div>
+          <div id="qr-cls-rows"></div>
+          <button class="btn btn-sm" onclick="addQRClsRow()" style="margin-top:8px;">+ Add class</button>
         </div>
-        <div class="btn-row">
-          <button class="btn btn-primary" onclick="saveRefEdits()">Save changes</button>
+        <div class="btn-row" style="margin-top:1rem;">
+          <button class="btn btn-primary" onclick="saveQRGrid()">Save changes</button>
           <button class="btn" onclick="resetRefEdits()">Reset to defaults</button>
         </div>
         <div id="ref-edit-msg" class="flash"></div>
@@ -484,7 +492,7 @@ input[type=number]{width:80px;text-align:right;}
         <p style="font-size:12px;color:var(--t2);margin-bottom:8px;">Upload photos or scans of your receipts. You can select multiple files.</p>
         <label class="btn" style="cursor:pointer;display:inline-flex;">
           Take photo or upload receipt
-          <input type="file" id="receipt-files" accept="image/*,application/pdf" multiple style="display:none;" onchange="previewReceipts(event)"/>
+          <input type="file" id="receipt-files" accept="image/*,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,.pdf,.jpg,.jpeg,.png,.gif,.webp,.heic,.heif" multiple style="display:none;" onchange="previewReceipts(event)"/>
         </label>
         <div id="receipt-preview" style="display:flex;flex-wrap:wrap;gap:8px;margin-top:10px;"></div>
       </div>
@@ -502,6 +510,7 @@ input[type=number]{width:80px;text-align:right;}
       <div class="btn-row">
         <button class="btn btn-primary" id="reimb-submit-btn" onclick="submitReimb()">Submit for approval</button>
         <button class="btn" onclick="saveReimbDraft()" style="color:var(--accent);border-color:var(--accent);">Save &amp; return later</button>
+        <button class="btn" onclick="downloadReimbPDF()">Download PDF</button>
         <button class="btn" onclick="clearReimb()">Clear</button>
       </div>
       <div id="reimb-msg" class="flash"></div>
@@ -511,8 +520,9 @@ input[type=number]{width:80px;text-align:right;}
     <!-- REIMBURSEMENT APPROVALS (admin) -->
     <div id="panel-reimb-approvals" class="panel">
       <div class="section-head"><h2>Reimbursement requests</h2>
-        <div style="display:flex;gap:8px;">
+        <div style="display:flex;gap:8px;flex-wrap:wrap;">
           <button class="btn btn-sm" onclick="toggleRefPanel()" style="color:var(--accent);border-color:var(--accent);">&#128203; Reference</button>
+          <button class="btn btn-sm btn-primary" onclick="approveAllVisibleReimb()">Approve all visible</button>
           <button class="btn" onclick="exportReimbCSV()">Export CSV</button>
         </div>
       </div>
@@ -548,7 +558,7 @@ input[type=number]{width:80px;text-align:right;}
   </div>
   <!-- Inner tabs -->
   <div style="display:flex;gap:0;border-bottom:1px solid var(--border);flex-shrink:0;">
-    <button id="rp-tab-cls" onclick="showRefPanelTab('cls')" style="flex:1;padding:8px;font-size:12px;font-weight:600;border:none;background:var(--accent-lt);cursor:pointer;color:var(--accent);border-bottom:2px solid var(--accent);">Classes</button>
+    <button id="rp-tab-cls" onclick="showRefPanelTab('cls')" style="flex:1;padding:8px;font-size:12px;font-weight:600;border:none;background:var(--surface);cursor:pointer;color:var(--accent);border-bottom:2px solid var(--accent);">Classes</button>
     <button id="rp-tab-acct" onclick="showRefPanelTab('acct')" style="flex:1;padding:8px;font-size:12px;font-weight:600;border:none;background:none;cursor:pointer;color:var(--t2);border-bottom:2px solid transparent;">Accounts</button>
   </div>
   <div style="overflow-y:auto;flex:1;">
@@ -942,7 +952,12 @@ function buildTSGrid(){
     rows.forEach(function(c){
       bodyHtml+='<tr>';
       bodyHtml+='<td class="cls-name">'+c.name+'</td>';
-      bodyHtml+='<td class="cls-code">'+c.code+'</td>';
+      var isLeave=(c.category==='Leave'||c.category==='leave');
+      if(isLeave){
+        bodyHtml+='<td class="cls-code"><input type="text" id="qb-'+c.id+'" placeholder="code" style="width:34px;font-size:10px;text-align:center;font-family:monospace;border:1px solid var(--border-lt);border-radius:3px;padding:2px 1px;background:var(--surface);"/></td>';
+      } else {
+        bodyHtml+='<td class="cls-code">'+c.code+'</td>';
+      }
       days.forEach(function(d,di){
         var isWeekend=d.getDay()===0||d.getDay()===6;
         bodyHtml+='<td style="padding:1px;'+(isWeekend?'background:#f8f8f6;':'')+'"><input type="number" class="tsg" id="g-'+c.id+'-'+di+'" min="0" max="24" step="0.25" placeholder="" oninput="updateGrid()" style="width:30px;"/></td>';
@@ -1114,7 +1129,10 @@ async function submitTS(){
       totalHrs+=h;
     });
     if(totalHrs>0){
-      entries.push({id:c.id,name:c.name,code:c.code,category:c.category,hours:totalHrs,dayHours:dayHours});
+      var isLeaveEntry=(c.category==='Leave'||c.category==='leave');
+      var entryCode=c.code;
+      if(isLeaveEntry){var qbEl=document.getElementById('qb-'+c.id);if(qbEl&&qbEl.value.trim())entryCode=qbEl.value.trim();}
+      entries.push({id:c.id,name:c.name,code:entryCode,category:c.category,hours:totalHrs,dayHours:dayHours});
     }
   });
   // Add custom rows
@@ -1419,8 +1437,7 @@ function printSingleTS(s){
     '<div style="border-bottom:1px solid #333;height:44px;width:180px;"></div>';
   var sigDate = s.employee_sig_date ? s.employee_sig_date : '___________';
   win.document.write('<!DOCTYPE html><html><head><meta charset="UTF-8"/><title>Timesheet - '+s.staff_name+'</title>'+
-    '<style>body{font-family:Arial,sans-serif;font-size:12px;padding:1.5rem;max-width:900px;margin:0 auto;}'+
-    '@page{size:landscape;}'+
+    '<style>body{font-family:Arial,sans-serif;font-size:12px;padding:1.5rem;max-width:750px;margin:0 auto;}'+
     '@media print{.noprint{display:none;}}</style></head><body>'+
     '<div class="noprint" style="margin-bottom:1rem;display:flex;gap:10px;">'+
       '<button onclick="window.print()" style="padding:8px 16px;background:#2A5F2A;color:#fff;border:none;border-radius:6px;cursor:pointer;">Print</button>'+
@@ -2200,49 +2217,62 @@ function getReimbItems(){
   return items;
 }
 
-function previewReceipts(event){
+var draftReceiptUrls = []; // tracks URLs uploaded to drafts folder
+
+async function previewReceipts(event){
   var files = Array.from(event.target.files);
-  reimbFiles = reimbFiles.concat(files);
+  if(!files.length) return;
   var preview = document.getElementById('receipt-preview');
-  preview.innerHTML = '';
-  reimbFiles.forEach(function(file,i){
-    var wrap = document.createElement('div');
-    wrap.style.cssText = 'position:relative;display:inline-block;';
-    if(file.type.startsWith('image/')){
-      var img = document.createElement('img');
-      img.style.cssText = 'width:80px;height:80px;object-fit:cover;border-radius:6px;border:1px solid var(--border);';
-      var reader = new FileReader();
-      reader.onload = function(e){img.src = e.target.result;};
-      reader.readAsDataURL(file);
-      wrap.appendChild(img);
-    } else {
-      var lbl = document.createElement('div');
-      lbl.style.cssText = 'width:80px;height:80px;border-radius:6px;border:1px solid var(--border);background:var(--bg);display:flex;align-items:center;justify-content:center;font-size:10px;color:var(--t2);text-align:center;padding:4px;';
-      lbl.textContent = file.name.slice(0,20);
-      wrap.appendChild(lbl);
+  // Upload each file immediately to drafts folder
+  for(var i=0;i<files.length;i++){
+    var file = files[i];
+    var ext = file.name.split('.').pop();
+    var draftPath = 'drafts/'+currentUser.id+'/'+Date.now()+'_'+i+'.'+ext;
+    var r = await sb.storage.from('receipts').upload(draftPath, file, {cacheControl:'86400',upsert:false});
+    if(!r.error){
+      var urlData = sb.storage.from('receipts').getPublicUrl(draftPath);
+      var url = urlData.data.publicUrl;
+      draftReceiptUrls.push({url:url, path:draftPath});
+      addReceiptPreview(preview, url, draftPath, file.name, file.type);
     }
-    var del = document.createElement('button');
-    del.textContent = 'x';
-    del.style.cssText = 'position:absolute;top:-6px;right:-6px;width:18px;height:18px;border-radius:50%;background:var(--red);color:#fff;border:none;cursor:pointer;font-size:11px;display:flex;align-items:center;justify-content:center;padding:0;';
-    (function(idx){del.addEventListener('click',function(){reimbFiles.splice(idx,1);previewReceipts({target:{files:[]}});});})(i);
-    wrap.appendChild(del);
-    preview.appendChild(wrap);
+  }
+  // Clear the file input so same file can be re-selected
+  document.getElementById('receipt-files').value='';
+}
+
+function addReceiptPreview(preview, url, path, name, type){
+  var wrap = document.createElement('div');
+  wrap.style.cssText = 'position:relative;display:inline-block;';
+  wrap.setAttribute('data-path', path);
+  if(type && type.startsWith('image/')){
+    var img = document.createElement('img');
+    img.src = url;
+    img.style.cssText = 'width:80px;height:80px;object-fit:cover;border-radius:6px;border:1px solid var(--border);';
+    wrap.appendChild(img);
+  } else {
+    var lbl = document.createElement('div');
+    lbl.style.cssText = 'width:80px;height:80px;border-radius:6px;border:1px solid var(--border);background:var(--bg);display:flex;align-items:center;justify-content:center;font-size:10px;color:var(--t2);text-align:center;padding:4px;';
+    lbl.textContent = name ? name.slice(0,20) : 'File';
+    wrap.appendChild(lbl);
+  }
+  var del = document.createElement('button');
+  del.textContent = 'x';
+  del.style.cssText = 'position:absolute;top:-6px;right:-6px;width:18px;height:18px;border-radius:50%;background:var(--red);color:#fff;border:none;cursor:pointer;font-size:11px;display:flex;align-items:center;justify-content:center;padding:0;';
+  del.addEventListener('click',function(){
+    // Remove from draftReceiptUrls
+    draftReceiptUrls = draftReceiptUrls.filter(function(d){return d.path!==path;});
+    // Delete from storage
+    sb.storage.from('receipts').remove([path]);
+    wrap.remove();
   });
+  wrap.appendChild(del);
+  preview.appendChild(wrap);
 }
 
 async function uploadReceipts(reimbId){
-  var urls = [];
-  for(var i=0;i<reimbFiles.length;i++){
-    var file = reimbFiles[i];
-    var ext = file.name.split('.').pop();
-    var path = 'receipts/'+reimbId+'/'+Date.now()+'_'+i+'.'+ext;
-    var r = await sb.storage.from('receipts').upload(path, file, {cacheControl:'2592000',upsert:false});
-    if(!r.error){
-      var urlData = sb.storage.from('receipts').getPublicUrl(path);
-      urls.push(urlData.data.publicUrl);
-    }
-  }
-  return urls;
+  // Receipts already uploaded to drafts - just return their URLs
+  // They'll stay in drafts folder (30 day retention is fine)
+  return draftReceiptUrls.map(function(d){return d.url;});
 }
 
 async function submitReimb(){
@@ -2296,10 +2326,12 @@ async function submitReimb(){
 function clearReimb(){
   document.getElementById('reimb-rows').innerHTML = '';
   reimbFiles = [];
+  draftReceiptUrls = [];
   reimbRowCount = 0;
   document.getElementById('receipt-preview').innerHTML = '';
   document.getElementById('receipt-files').value = '';
   clearSig('sig-reimb');
+  delete sigStore['sig-reimb'];
   addReimbRow();
   updateReimbTotal();
 }
@@ -2814,8 +2846,22 @@ async function cancelAndEditReimb(id){
       }
     });
     updateReimbTotal();
+    // Restore receipt previews
+    if(s.receipt_urls && s.receipt_urls.length){
+      var preview = document.getElementById('receipt-preview');
+      preview.innerHTML = '';
+      draftReceiptUrls = [];
+      s.receipt_urls.forEach(function(url){
+        var path = url.split('/receipts/')[1] || url;
+        draftReceiptUrls.push({url:url, path:path});
+        // Guess type from extension
+        var ext = url.split('.').pop().toLowerCase();
+        var type = ['jpg','jpeg','png','gif','webp','heic'].indexOf(ext)>=0 ? 'image/'+ext : 'application/octet-stream';
+        addReceiptPreview(preview, url, path, path.split('/').pop(), type);
+      });
+    }
     var msg = document.getElementById('reimb-msg');
-    msg.textContent = 'Reimbursement cancelled and returned to draft. Make your changes and resubmit.';
+    msg.textContent = 'Reimbursement returned to draft. Make your changes and resubmit.';
     msg.className = 'flash ok';
     msg.style.display = 'flex';
   }, 300);
@@ -3072,6 +3118,170 @@ async function deleteAccount(id,name){
   renderAccounts();
 }
 
+// --- DOWNLOAD REIMB PDF BEFORE SUBMIT ---
+function downloadReimbPDF(){
+  var items = getReimbItems();
+  var ppIdx = +document.getElementById('reimb-period').value;
+  var p = PP[ppIdx];
+  var total = items.reduce(function(s,e){return s+e.cost;},0);
+  var empSig = getSigURL('sig-reimb');
+  var sigDate = document.getElementById('sig-reimb-date') ? document.getElementById('sig-reimb-date').value : '';
+  // Build a fake submission object for the print function
+  var fakeSub = {
+    staff_name: currentUser.name,
+    period: p.l,
+    items: items,
+    total: total,
+    status: 'draft',
+    employee_signature: empSig,
+    employee_sig_date: sigDate,
+    receipt_urls: draftReceiptUrls.map(function(d){return d.url;})
+  };
+  var win = window.open('','_blank');
+  if(!win){alert('Please allow popups.');return;}
+  win.document.write('<!DOCTYPE html><html><head><meta charset="UTF-8"/><title>Reimbursement Draft - '+currentUser.name+'</title>'+
+    '<style>body{font-family:Arial,sans-serif;font-size:13px;padding:2rem;max-width:750px;margin:0 auto;}'+
+    '@media print{.noprint{display:none;}}</style></head><body>'+
+    '<div class="noprint" style="margin-bottom:1rem;display:flex;gap:10px;align-items:center;">'+
+      '<strong style="color:#666;">DRAFT — not yet submitted</strong>'+
+      '<button onclick="window.print()" style="padding:8px 16px;background:#2A5F2A;color:#fff;border:none;border-radius:6px;cursor:pointer;margin-left:auto;">Print / Save PDF</button>'+
+      '<button onclick="window.close()" style="padding:8px 16px;border:1px solid #ccc;border-radius:6px;cursor:pointer;background:none;">Close</button>'+
+    '</div>'+
+    buildReimbPrintHTML(fakeSub)+
+    '</body></html>');
+  win.document.close();
+}
+
+// --- APPROVE ALL ---
+async function approveAllVisible(){
+  var pending = approvalData.filter(function(s){return s.status==='pending';});
+  if(!pending.length){alert('No pending timesheets to approve.');return;}
+  if(!confirm('Approve all '+pending.length+' pending timesheet'+(pending.length===1?'':'s')+'?'))return;
+  for(var i=0;i<pending.length;i++){
+    await sb.from('submissions').update({status:'approved',rejection_reason:null}).eq('id',pending[i].id);
+  }
+  renderApprovals();
+}
+
+async function approveAllVisibleReimb(){
+  var pending = reimbApprovalData.filter(function(s){return s.status==='pending';});
+  if(!pending.length){alert('No pending reimbursements to approve.');return;}
+  if(!confirm('Approve all '+pending.length+' pending reimbursement'+(pending.length===1?'':'s')+'?'))return;
+  for(var i=0;i<pending.length;i++){
+    await sb.from('reimbursements').update({status:'approved',rejection_reason:null}).eq('id',pending[i].id);
+  }
+  renderReimbApprovals();
+}
+
+// --- QR GRID MANAGEMENT ---
+function renderQRAcctRows(){
+  var container = document.getElementById('qr-acct-rows');
+  if(!container) return;
+  container.innerHTML = '';
+  REF_ACCOUNTS.forEach(function(a, i){
+    var parts = a.split(' - ');
+    var code = parts[0]||'';
+    var name = parts.slice(1).join(' - ')||'';
+    var row = document.createElement('div');
+    row.style.cssText = 'display:grid;grid-template-columns:80px 1fr 40px;gap:6px;margin-bottom:4px;align-items:center;';
+    row.setAttribute('data-idx', i);
+    row.innerHTML =
+      '<input type="text" value="'+code.replace(/"/g,'&quot;')+'" placeholder="Code" style="font-size:12px;font-family:monospace;padding:4px 6px;border:1px solid var(--border-lt);border-radius:4px;background:var(--surface);"/>'+
+      '<input type="text" value="'+name.replace(/"/g,'&quot;')+'" placeholder="Account name" style="font-size:12px;padding:4px 6px;border:1px solid var(--border-lt);border-radius:4px;background:var(--surface);"/>'+
+      '<button onclick="removeQRRow(this)" style="background:none;border:none;color:var(--red);cursor:pointer;font-size:16px;padding:0;">x</button>';
+    container.appendChild(row);
+  });
+}
+
+function renderQRClsRows(){
+  var container = document.getElementById('qr-cls-rows');
+  if(!container) return;
+  container.innerHTML = '';
+  REF_CLASSES.forEach(function(c, i){
+    var row = document.createElement('div');
+    row.style.cssText = 'display:grid;grid-template-columns:80px 1fr 100px 40px;gap:6px;margin-bottom:4px;align-items:center;';
+    row.setAttribute('data-idx', i);
+    var typeOpts = '<option value="header"'+(c.parent?' selected':'')+'>Header</option>'+
+                   '<option value="subclass"'+(!c.parent?' selected':'')+'>Sub-class</option>';
+    row.innerHTML =
+      '<input type="text" value="'+c.code.replace(/"/g,'&quot;')+'" placeholder="Code" style="font-size:12px;font-family:monospace;padding:4px 6px;border:1px solid var(--border-lt);border-radius:4px;background:var(--surface);'+(c.parent?'opacity:.5;':'')+'"/>'+
+      '<input type="text" value="'+c.name.replace(/"/g,'&quot;')+'" placeholder="Class name" style="font-size:12px;padding:4px 6px;border:1px solid var(--border-lt);border-radius:4px;background:var(--surface);font-weight:'+(c.parent?'700':'400')+';"/>'+
+      '<select style="font-size:12px;padding:4px 6px;border:1px solid var(--border-lt);border-radius:4px;background:var(--surface);">'+typeOpts+'</select>'+
+      '<button onclick="removeQRRow(this)" style="background:none;border:none;color:var(--red);cursor:pointer;font-size:16px;padding:0;">x</button>';
+    container.appendChild(row);
+  });
+}
+
+function addQRAcctRow(){
+  var container = document.getElementById('qr-acct-rows');
+  var row = document.createElement('div');
+  row.style.cssText = 'display:grid;grid-template-columns:80px 1fr 40px;gap:6px;margin-bottom:4px;align-items:center;';
+  row.innerHTML =
+    '<input type="text" placeholder="Code" style="font-size:12px;font-family:monospace;padding:4px 6px;border:1px solid var(--border-lt);border-radius:4px;background:var(--surface);"/>'+
+    '<input type="text" placeholder="Account name" style="font-size:12px;padding:4px 6px;border:1px solid var(--border-lt);border-radius:4px;background:var(--surface);"/>'+
+    '<button onclick="removeQRRow(this)" style="background:none;border:none;color:var(--red);cursor:pointer;font-size:16px;padding:0;">x</button>';
+  container.appendChild(row);
+  row.querySelector('input').focus();
+}
+
+function addQRClsRow(){
+  var container = document.getElementById('qr-cls-rows');
+  var row = document.createElement('div');
+  row.style.cssText = 'display:grid;grid-template-columns:80px 1fr 100px 40px;gap:6px;margin-bottom:4px;align-items:center;';
+  row.innerHTML =
+    '<input type="text" placeholder="Code" style="font-size:12px;font-family:monospace;padding:4px 6px;border:1px solid var(--border-lt);border-radius:4px;background:var(--surface);"/>'+
+    '<input type="text" placeholder="Class name" style="font-size:12px;padding:4px 6px;border:1px solid var(--border-lt);border-radius:4px;background:var(--surface);"/>'+
+    '<select style="font-size:12px;padding:4px 6px;border:1px solid var(--border-lt);border-radius:4px;background:var(--surface);"><option value="subclass">Sub-class</option><option value="header">Header</option></select>'+
+    '<button onclick="removeQRRow(this)" style="background:none;border:none;color:var(--red);cursor:pointer;font-size:16px;padding:0;">x</button>';
+  container.appendChild(row);
+  row.querySelector('input').focus();
+}
+
+function removeQRRow(btn){
+  btn.closest('div[style]').remove();
+}
+
+function saveQRGrid(){
+  var msg = document.getElementById('ref-edit-msg');
+  // Collect accounts
+  var newAccounts = [];
+  var acctContainer = document.getElementById('qr-acct-rows');
+  if(acctContainer){
+    acctContainer.querySelectorAll('div[style]').forEach(function(row){
+      var inputs = row.querySelectorAll('input');
+      var code = inputs[0] ? inputs[0].value.trim() : '';
+      var name = inputs[1] ? inputs[1].value.trim() : '';
+      if(code && name) newAccounts.push(code+' - '+name);
+    });
+  }
+  // Collect classes
+  var newClasses = [];
+  var clsContainer = document.getElementById('qr-cls-rows');
+  if(clsContainer){
+    clsContainer.querySelectorAll('div[style]').forEach(function(row){
+      var inputs = row.querySelectorAll('input');
+      var sel = row.querySelector('select');
+      var code = inputs[0] ? inputs[0].value.trim() : '';
+      var name = inputs[1] ? inputs[1].value.trim() : '';
+      var isHeader = sel && sel.value === 'header';
+      if(name){
+        newClasses.push({code: isHeader ? name : code, name: name, parent: isHeader});
+      }
+    });
+  }
+  // Save
+  localStorage.setItem(REF_EDIT_KEY, JSON.stringify({classes:newClasses, accounts:newAccounts}));
+  REF_CLASSES = newClasses;
+  REF_ACCOUNTS = newAccounts;
+  flash(msg, 'Quick Reference updated! Changes take effect immediately.', 'ok');
+}
+
+// Update loadRefEdits to render the grid
+function loadRefEdits(){
+  renderQRAcctRows();
+  renderQRClsRows();
+}
+
 // --- QUICK REFERENCE INNER TABS ---
 function showQRTab(tab){
   var acctPanel = document.getElementById('qr-panel-acct');
@@ -3082,13 +3292,15 @@ function showQRTab(tab){
   if(tab==='acct'){
     acctPanel.style.display='block';
     clsPanel.style.display='none';
-    if(acctBtn){acctBtn.style.borderBottomColor='var(--accent)';acctBtn.style.color='var(--accent)';}
-    if(clsBtn){clsBtn.style.borderBottomColor='transparent';clsBtn.style.color='var(--t2)';}
+    if(acctBtn){acctBtn.style.borderBottomColor='var(--accent)';acctBtn.style.color='var(--accent)';acctBtn.style.background='var(--surface)';}
+    if(clsBtn){clsBtn.style.borderBottomColor='transparent';clsBtn.style.color='var(--t2)';clsBtn.style.background='none';}
+    renderQRAcctRows();
   } else {
     acctPanel.style.display='none';
     clsPanel.style.display='block';
-    if(clsBtn){clsBtn.style.borderBottomColor='var(--accent)';clsBtn.style.color='var(--accent)';}
-    if(acctBtn){acctBtn.style.borderBottomColor='transparent';acctBtn.style.color='var(--t2)';}
+    if(clsBtn){clsBtn.style.borderBottomColor='var(--accent)';clsBtn.style.color='var(--accent)';clsBtn.style.background='var(--surface)';}
+    if(acctBtn){acctBtn.style.borderBottomColor='transparent';acctBtn.style.color='var(--t2)';acctBtn.style.background='none';}
+    renderQRClsRows();
   }
 }
 
