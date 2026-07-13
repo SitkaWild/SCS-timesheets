@@ -361,13 +361,13 @@ input[type=number]{width:80px;text-align:right;}
         <div style="font-size:15px;font-weight:600;margin-bottom:1rem;">Quick Reference Accounts / Classes</div>
         <!-- Inner tabs -->
         <div style="display:flex;gap:0;border-bottom:2px solid var(--border);margin-bottom:1rem;">
-          <button id="qr-tab-acct" onclick="showQRTab('acct')" style="padding:8px 18px;font-size:13px;font-weight:500;border:none;background:var(--surface);cursor:pointer;border-bottom:2px solid var(--accent);margin-bottom:-2px;color:var(--accent);">Accounts</button>
-          <button id="qr-tab-cls" onclick="showQRTab('cls')" style="padding:8px 18px;font-size:13px;font-weight:500;border:none;background:none;cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-2px;color:var(--t2);">Classes</button>
+          <button id="qr-tab-acct" onclick="showQRTab('acct')" style="padding:8px 18px;font-size:13px;font-weight:500;border:none;background:#fff;cursor:pointer;border-bottom:2px solid var(--accent);margin-bottom:-2px;color:var(--accent);">Accounts</button>
+          <button id="qr-tab-cls" onclick="showQRTab('cls')" style="padding:8px 18px;font-size:13px;font-weight:500;border:none;background:transparent;cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-2px;color:var(--t2);">Classes</button>
         </div>
         <!-- Accounts grid -->
         <div id="qr-panel-acct">
-          <div style="display:grid;grid-template-columns:80px 1fr 40px;gap:6px;margin-bottom:6px;font-size:10px;font-weight:600;text-transform:uppercase;color:var(--t3);">
-            <span>Code</span><span>Name</span><span></span>
+          <div style="display:grid;grid-template-columns:80px 1fr 90px 40px;gap:6px;margin-bottom:6px;font-size:10px;font-weight:600;text-transform:uppercase;color:var(--t3);">
+            <span>Code</span><span>Name</span><span>Type</span><span></span>
           </div>
           <div id="qr-acct-rows"></div>
           <button class="btn btn-sm" onclick="addQRAcctRow()" style="margin-top:8px;">+ Add account</button>
@@ -558,8 +558,8 @@ input[type=number]{width:80px;text-align:right;}
   </div>
   <!-- Inner tabs -->
   <div style="display:flex;gap:0;border-bottom:1px solid var(--border);flex-shrink:0;">
-    <button id="rp-tab-cls" onclick="showRefPanelTab('cls')" style="flex:1;padding:8px;font-size:12px;font-weight:600;border:none;background:var(--surface);cursor:pointer;color:var(--accent);border-bottom:2px solid var(--accent);">Classes</button>
-    <button id="rp-tab-acct" onclick="showRefPanelTab('acct')" style="flex:1;padding:8px;font-size:12px;font-weight:600;border:none;background:none;cursor:pointer;color:var(--t2);border-bottom:2px solid transparent;">Accounts</button>
+    <button id="rp-tab-cls" onclick="showRefPanelTab('cls')" style="flex:1;padding:8px;font-size:12px;font-weight:600;border:none;background:#fff;cursor:pointer;color:var(--accent);border-bottom:2px solid var(--accent);">Classes</button>
+    <button id="rp-tab-acct" onclick="showRefPanelTab('acct')" style="flex:1;padding:8px;font-size:12px;font-weight:600;border:none;background:transparent;cursor:pointer;color:var(--t2);border-bottom:2px solid transparent;">Accounts</button>
   </div>
   <div style="overflow-y:auto;flex:1;">
     <div id="rp-panel-cls" style="padding:10px 16px;">
@@ -3033,12 +3033,12 @@ function showRefPanelTab(tab){
   if(!clsPanel||!acctPanel) return;
   if(tab==='cls'){
     clsPanel.style.display='block';acctPanel.style.display='none';
-    if(clsBtn){clsBtn.style.background='var(--accent-lt)';clsBtn.style.color='var(--accent)';clsBtn.style.borderBottomColor='var(--accent)';}
-    if(acctBtn){acctBtn.style.background='none';acctBtn.style.color='var(--t2)';acctBtn.style.borderBottomColor='transparent';}
+    if(clsBtn){clsBtn.style.background='#fff';clsBtn.style.color='var(--accent)';clsBtn.style.borderBottomColor='var(--accent)';}
+    if(acctBtn){acctBtn.style.background='transparent';acctBtn.style.color='var(--t2)';acctBtn.style.borderBottomColor='transparent';}
   } else {
     clsPanel.style.display='none';acctPanel.style.display='block';
-    if(acctBtn){acctBtn.style.background='var(--accent-lt)';acctBtn.style.color='var(--accent)';acctBtn.style.borderBottomColor='var(--accent)';}
-    if(clsBtn){clsBtn.style.background='none';clsBtn.style.color='var(--t2)';clsBtn.style.borderBottomColor='transparent';}
+    if(acctBtn){acctBtn.style.background='#fff';acctBtn.style.color='var(--accent)';acctBtn.style.borderBottomColor='var(--accent)';}
+    if(clsBtn){clsBtn.style.background='transparent';clsBtn.style.color='var(--t2)';clsBtn.style.borderBottomColor='transparent';}
   }
   buildRefPanel();
 }
@@ -3178,16 +3178,24 @@ function renderQRAcctRows(){
   var container = document.getElementById('qr-acct-rows');
   if(!container) return;
   container.innerHTML = '';
+  // Update header row
+  var hdr = container.previousElementSibling;
+  if(hdr) hdr.style.gridTemplateColumns='80px 1fr 90px 40px';
   REF_ACCOUNTS.forEach(function(a, i){
-    var parts = a.split(' - ');
-    var code = parts[0]||'';
-    var name = parts.slice(1).join(' - ')||'';
+    var code='',name='',type='item';
+    if(typeof a==='string'){
+      var parts=a.split(' - ');code=parts[0]||'';name=parts.slice(1).join(' - ')||'';
+    } else {code=a.code||'';name=a.name||'';type=a.type||'item';}
     var row = document.createElement('div');
-    row.style.cssText = 'display:grid;grid-template-columns:80px 1fr 40px;gap:6px;margin-bottom:4px;align-items:center;';
-    row.setAttribute('data-idx', i);
+    row.style.cssText = 'display:grid;grid-template-columns:80px 1fr 90px 40px;gap:6px;margin-bottom:4px;align-items:center;';
+    var typeOpts=['header','subheader','account','item'].map(function(t){
+      var labels={header:'Header',subheader:'Sub-header',account:'Account',item:'Item'};
+      return '<option value="'+t+'"'+(t===type?' selected':'')+'>'+labels[t]+'</option>';
+    }).join('');
     row.innerHTML =
       '<input type="text" value="'+code.replace(/"/g,'&quot;')+'" placeholder="Code" style="font-size:12px;font-family:monospace;padding:4px 6px;border:1px solid var(--border-lt);border-radius:4px;background:var(--surface);"/>'+
       '<input type="text" value="'+name.replace(/"/g,'&quot;')+'" placeholder="Account name" style="font-size:12px;padding:4px 6px;border:1px solid var(--border-lt);border-radius:4px;background:var(--surface);"/>'+
+      '<select style="font-size:11px;padding:4px 3px;border:1px solid var(--border-lt);border-radius:4px;background:var(--surface);">'+typeOpts+'</select>'+
       '<button onclick="removeQRRow(this)" style="background:none;border:none;color:var(--red);cursor:pointer;font-size:16px;padding:0;">x</button>';
     container.appendChild(row);
   });
@@ -3215,10 +3223,11 @@ function renderQRClsRows(){
 function addQRAcctRow(){
   var container = document.getElementById('qr-acct-rows');
   var row = document.createElement('div');
-  row.style.cssText = 'display:grid;grid-template-columns:80px 1fr 40px;gap:6px;margin-bottom:4px;align-items:center;';
+  row.style.cssText = 'display:grid;grid-template-columns:80px 1fr 90px 40px;gap:6px;margin-bottom:4px;align-items:center;';
   row.innerHTML =
     '<input type="text" placeholder="Code" style="font-size:12px;font-family:monospace;padding:4px 6px;border:1px solid var(--border-lt);border-radius:4px;background:var(--surface);"/>'+
     '<input type="text" placeholder="Account name" style="font-size:12px;padding:4px 6px;border:1px solid var(--border-lt);border-radius:4px;background:var(--surface);"/>'+
+    '<select style="font-size:11px;padding:4px 3px;border:1px solid var(--border-lt);border-radius:4px;background:var(--surface);"><option value="item">Item</option><option value="header">Header</option><option value="subheader">Sub-header</option><option value="account">Account</option></select>'+
     '<button onclick="removeQRRow(this)" style="background:none;border:none;color:var(--red);cursor:pointer;font-size:16px;padding:0;">x</button>';
   container.appendChild(row);
   row.querySelector('input').focus();
@@ -3249,9 +3258,11 @@ function saveQRGrid(){
   if(acctContainer){
     acctContainer.querySelectorAll('div[style]').forEach(function(row){
       var inputs = row.querySelectorAll('input');
+      var sel = row.querySelector('select');
       var code = inputs[0] ? inputs[0].value.trim() : '';
       var name = inputs[1] ? inputs[1].value.trim() : '';
-      if(code && name) newAccounts.push(code+' - '+name);
+      var type = sel ? sel.value : 'item';
+      if(name) newAccounts.push({code:code,name:name,type:type});
     });
   }
   // Collect classes
@@ -3292,14 +3303,14 @@ function showQRTab(tab){
   if(tab==='acct'){
     acctPanel.style.display='block';
     clsPanel.style.display='none';
-    if(acctBtn){acctBtn.style.borderBottomColor='var(--accent)';acctBtn.style.color='var(--accent)';acctBtn.style.background='var(--surface)';}
-    if(clsBtn){clsBtn.style.borderBottomColor='transparent';clsBtn.style.color='var(--t2)';clsBtn.style.background='none';}
+    if(acctBtn){acctBtn.style.borderBottomColor='var(--accent)';acctBtn.style.color='var(--accent)';acctBtn.style.background='#fff';}
+    if(clsBtn){clsBtn.style.borderBottomColor='transparent';clsBtn.style.color='var(--t2)';clsBtn.style.background='transparent';}
     renderQRAcctRows();
   } else {
     acctPanel.style.display='none';
     clsPanel.style.display='block';
-    if(clsBtn){clsBtn.style.borderBottomColor='var(--accent)';clsBtn.style.color='var(--accent)';clsBtn.style.background='var(--surface)';}
-    if(acctBtn){acctBtn.style.borderBottomColor='transparent';acctBtn.style.color='var(--t2)';acctBtn.style.background='none';}
+    if(clsBtn){clsBtn.style.borderBottomColor='var(--accent)';clsBtn.style.color='var(--accent)';clsBtn.style.background='#fff';}
+    if(acctBtn){acctBtn.style.borderBottomColor='transparent';acctBtn.style.color='var(--t2)';acctBtn.style.background='transparent';}
     renderQRClsRows();
   }
 }
@@ -3385,32 +3396,84 @@ var REF_CLASSES = [
 ];
 
 var REF_ACCOUNTS = [
-  '4000 - Grant Income','4001 - Federal Reimbursement Funds','4300 - Individual Contributions',
-  '4305 - Individual Donation','4310 - Major Donation','4315 - Monthly Donation',
-  '4320 - Membership Dues','4321 - New Member','4400 - Fundraising/Special Events',
-  '4450 - Program (Service/Rental) Income','4500 - Retail Donations','5000 - Merchandise Expense',
-  '6000 - Personnel Expense','6100 - Payroll Expenses','6101 - Director Salary',
-  '6110 - Interns','6120 - Permanent Wages','6130 - Temporary Employees',
-  '6199 - Direct Deposit Fees','6200 - Payroll Tax Expense','6300 - Employee Benefits',
-  '6400 - Workers Comp Insurance','6500 - Events & Outreach','6510 - Advertising',
-  '6520 - Boat Trips','6530 - Meeting & Event Expense','6531 - Organizing Meeting',
-  '6532 - Community Meeting','6533 - Organizational Meeting','6534 - Conference Attendance',
-  '6540 - Special Events Expense','6542 - Contract','6543 - Special Event Exp/Rent',
-  '6600 - Office and Rent','6601 - Rent & Utilities','6610 - General Office Operations',
-  '6620 - Software & Website','6630 - Dues & Subscriptions','6640 - Equipment & Maint.',
-  '6650 - Liability Insurance','6651 - D&O Insurance','6655 - Property Insurance',
-  '6660 - Office Repair & Maint.','6670 - Postage','6680 - Printing & Copying',
-  '6685 - Charges / Fees','6690 - Office Supplies','6695 - Telephone/Internet',
-  '6700 - Professional Fees','6710 - Accounting','6720 - Environmental',
-  '6730 - Graphic Design','6740 - Media & Outreach','6750 - Other Professional Fee',
-  '6760 - Legal','6780 - Newsletter','6800 - Program Support',
-  '6805 - Grant Expense/Matching','6810 - Fieldwork Exp','6812 - Fieldwork Equip/Supplies',
-  '6813 - Fieldwork Support/Contract','6820 - Fundraising','6830 - Training',
-  '6840 - Travel Expense','6842 - Travel Reimb/Exp','6843 - Per Diem',
-  '6850 - Supplies','6860 - Volunteer Stipends','6900 - Depreciation Expense',
-  '4900 - Indirect Transfer','4920 - Overhead Transfer','7000 - Interest Income',
-  '7100 - Local Invest. Int. Earned','7900 - Unrealized Gain/Loss','7010 - Donation/Support Given',
-  '7500 - Overhead/Indirect Txfer DEBIT'
+  {code:'4000',name:'Grant Income',type:'item'},
+  {code:'4001',name:'Federal Reimbursement Funds',type:'item'},
+  {code:'4300',name:'Individual Contributions',type:'item'},
+  {code:'4305',name:'Individual Donation',type:'item'},
+  {code:'4310',name:'Major Donation',type:'item'},
+  {code:'4315',name:'Monthly Donation',type:'item'},
+  {code:'4320',name:'Membership Dues',type:'item'},
+  {code:'4321',name:'New Member',type:'item'},
+  {code:'4400',name:'Fundraising/Special Events',type:'item'},
+  {code:'4450',name:'Program (Service/Rental) Income',type:'item'},
+  {code:'4500',name:'Retail Donations',type:'item'},
+  {code:'4501',name:'Artist Income',type:'item'},
+  {code:'5000',name:'Merchandise Expense',type:'item'},
+  {code:'5001',name:'Artist Donation Payment',type:'item'},
+  {code:'6000',name:'Personnel Expense',type:'header'},
+  {code:'6100',name:'Payroll Expenses',type:'subheader'},
+  {code:'6101',name:'Director Salary',type:'account'},
+  {code:'6110',name:'Interns',type:'account'},
+  {code:'6120',name:'Permanent Wages',type:'account'},
+  {code:'6130',name:'Temporary Employees',type:'account'},
+  {code:'6199',name:'Direct Deposit Fees',type:'account'},
+  {code:'6200',name:'Payroll Tax Expense',type:'subheader'},
+  {code:'6300',name:'Employee Benefits',type:'subheader'},
+  {code:'6400',name:'Workers Comp Insurance',type:'subheader'},
+  {code:'6500',name:'Events & Outreach',type:'header'},
+  {code:'6510',name:'Advertising',type:'account'},
+  {code:'6520',name:'Boat Trips',type:'account'},
+  {code:'6530',name:'Meeting & Event Expense',type:'subheader'},
+  {code:'6531',name:'Organizing Meeting',type:'account'},
+  {code:'6532',name:'Community Meeting',type:'account'},
+  {code:'6533',name:'Organizational Meeting',type:'account'},
+  {code:'6534',name:'Conference Attendance',type:'account'},
+  {code:'6540',name:'Special Events Expense',type:'subheader'},
+  {code:'6542',name:'Contract',type:'account'},
+  {code:'6543',name:'Special Event Exp/Rent',type:'account'},
+  {code:'6600',name:'Office and Rent',type:'header'},
+  {code:'6601',name:'Rent & Utilities',type:'account'},
+  {code:'6610',name:'General Office Operations',type:'account'},
+  {code:'6620',name:'Software & Website',type:'account'},
+  {code:'6630',name:'Dues & Subscriptions',type:'account'},
+  {code:'6640',name:'Equipment & Maint.',type:'account'},
+  {code:'6650',name:'Liability Insurance',type:'account'},
+  {code:'6651',name:'D&O Insurance',type:'account'},
+  {code:'6655',name:'Property Insurance',type:'account'},
+  {code:'6660',name:'Office Repair & Maint.',type:'account'},
+  {code:'6670',name:'Postage',type:'account'},
+  {code:'6680',name:'Printing & Copying',type:'account'},
+  {code:'6685',name:'Charges / Fees',type:'account'},
+  {code:'6690',name:'Office Supplies',type:'account'},
+  {code:'6695',name:'Telephone/Internet',type:'account'},
+  {code:'6700',name:'Professional Fees',type:'header'},
+  {code:'6710',name:'Accounting',type:'account'},
+  {code:'6720',name:'Environmental',type:'account'},
+  {code:'6730',name:'Graphic Design',type:'account'},
+  {code:'6740',name:'Media & Outreach',type:'account'},
+  {code:'6750',name:'Other Professional Fee',type:'account'},
+  {code:'6760',name:'Legal',type:'account'},
+  {code:'6780',name:'Newsletter',type:'account'},
+  {code:'6800',name:'Program Support',type:'header'},
+  {code:'6805',name:'Grant Expense/Matching',type:'account'},
+  {code:'6810',name:'Fieldwork Exp',type:'subheader'},
+  {code:'6812',name:'Fieldwork Equip/Supplies',type:'account'},
+  {code:'6813',name:'Fieldwork Support/Contract',type:'account'},
+  {code:'6820',name:'Fundraising',type:'account'},
+  {code:'6830',name:'Training',type:'account'},
+  {code:'6840',name:'Travel Expense',type:'subheader'},
+  {code:'6842',name:'Travel Reimb/Exp',type:'account'},
+  {code:'6843',name:'Per Diem',type:'account'},
+  {code:'6850',name:'Supplies',type:'account'},
+  {code:'6860',name:'Volunteer Stipends',type:'account'},
+  {code:'6900',name:'Depreciation Expense',type:'item'},
+  {code:'4900',name:'Indirect Transfer',type:'item'},
+  {code:'4920',name:'Overhead Transfer',type:'item'},
+  {code:'7000',name:'Interest Income',type:'item'},
+  {code:'7100',name:'Local Invest. Int. Earned',type:'item'},
+  {code:'7900',name:'Unrealized Gain/Loss',type:'item'},
+  {code:'7010',name:'Donation/Support Given',type:'item'},
+  {code:'7500',name:'Overhead/Indirect Txfer DEBIT',type:'item'}
 ];
 
 var refPanelOpen = false;
@@ -3447,15 +3510,34 @@ function buildRefPanel(){
     });
     clsList.innerHTML = html;
   }
-  // Build accounts list
+  // Build accounts list with hierarchy
   var acctList = document.getElementById('ref-accounts-list');
   if(acctList){
     var html2 = REF_ACCOUNTS.map(function(a){
-      var parts = a.split(' - ');
-      return '<div style="display:flex;gap:6px;padding:2px 0;">'+
-        '<span style="font-family:monospace;color:var(--t3);min-width:36px;font-size:11px;">'+parts[0]+'</span>'+
-        '<span style="color:var(--text);">'+parts.slice(1).join(' - ')+'</span>'+
-        '</div>';
+      // Handle both old string format and new object format
+      if(typeof a === 'string'){
+        var parts = a.split(' - ');
+        return '<div style="display:flex;gap:6px;padding:2px 0;">'+
+          '<span style="font-family:monospace;color:var(--t3);min-width:36px;font-size:11px;">'+parts[0]+'</span>'+
+          '<span style="color:var(--text);">'+parts.slice(1).join(' - ')+'</span></div>';
+      }
+      var t = a.type||'item';
+      if(t==='header'){
+        return '<div style="font-weight:700;color:var(--accent);margin-top:10px;margin-bottom:2px;font-size:12px;">'+
+          a.code+' - '+a.name+'</div>';
+      } else if(t==='subheader'){
+        return '<div style="display:flex;gap:6px;padding:2px 0 2px 10px;font-weight:600;">'+
+          '<span style="font-family:monospace;color:var(--t3);min-width:36px;font-size:11px;">'+a.code+'</span>'+
+          '<span style="color:var(--text);">'+a.name+'</span></div>';
+      } else if(t==='account'){
+        return '<div style="display:flex;gap:6px;padding:2px 0 2px 20px;">'+
+          '<span style="font-family:monospace;color:var(--t3);min-width:36px;font-size:11px;">'+a.code+'</span>'+
+          '<span style="color:var(--t2);">'+a.name+'</span></div>';
+      } else {
+        return '<div style="display:flex;gap:6px;padding:2px 0;">'+
+          '<span style="font-family:monospace;color:var(--t3);min-width:36px;font-size:11px;">'+a.code+'</span>'+
+          '<span style="color:var(--text);">'+a.name+'</span></div>';
+      }
     }).join('');
     acctList.innerHTML = html2;
   }
