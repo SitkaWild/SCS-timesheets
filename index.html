@@ -854,7 +854,7 @@ function showPanel(id,btn){
   if(id==='history'){renderHistory();renderReimbHistory();}
   if(id==='approvals')renderApprovals();
   if(id==='users')renderUsers();
-  if(id==='classes'){renderClasses();renderCats();renderAccounts();}
+  if(id==='classes'){renderClasses();renderCats();renderAccounts();showQRTab('acct');}
   if(id==='notifications'){loadEJSConfig();renderReminderList();loadTpl();}
   if(id==='reimb'){
     initReimb();
@@ -3096,7 +3096,8 @@ async function renderAccounts(){
   if(!body) return;
   var r = await sb.from('accounts').select('*').order('sort_order');
   var data = r.data||[];
-  if(!data.length){body.innerHTML='<tr><td colspan="3" class="empty">No accounts yet — click + Add to add from the reference list or enter manually</td></tr>';return;}
+  if(r.error){body.innerHTML='<tr><td colspan="4" class="empty" style="color:var(--red);">Error loading: '+r.error.message+'</td></tr>';return;}
+  if(!data.length){body.innerHTML='<tr><td colspan="4" class="empty">No accounts yet — click + Add to add</td></tr>';return;}
   var frag = document.createDocumentFragment();
   data.forEach(function(a){
     var tr = document.createElement('tr');
