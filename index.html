@@ -3354,14 +3354,12 @@ function updateNestUnderAcct(){
   }
 }
 
+var CLASS_HEADER_CODES = [200,300,400,500,600,700,800,900];
+
 function isClassHeader(c){
   if(c.is_header===true) return true;
   var n=parseInt(c.code);
-  // Round hundreds: 100,200,300,400,500,600,700,800,900
-  if(n && n%100===0 && n<1000) return true;
-  // All-caps name (like WILDERNESS PROJECTS)
-  if(c.name && c.name===c.name.toUpperCase() && c.name.replace(/[^A-Z]/g,'').length>3) return true;
-  return false;
+  return CLASS_HEADER_CODES.indexOf(n)>=0;
 }
 
 function updateNestUnderCls(){
@@ -3371,7 +3369,9 @@ function updateNestUnderCls(){
   var t = type.value;
   parent.innerHTML = '<option value="">-- none --</option>';
   if(t==='subclass'){
-    allClasses.filter(isClassHeader).forEach(function(c){
+    allClasses.filter(function(c){
+      return CLASS_HEADER_CODES.indexOf(parseInt(c.code))>=0;
+    }).forEach(function(c){
       parent.insertAdjacentHTML('beforeend','<option value="'+c.code+'">'+c.code+' - '+c.name+'</option>');
     });
   }
@@ -3464,7 +3464,11 @@ function updateQRClsNestUnder(){
   if(!type||!parent) return;
   parent.innerHTML = '<option value="">-- none --</option>';
   if(type.value==='subclass'){
-    allQRClasses.filter(function(c){return c.is_header;}).forEach(function(c){
+    // Use hardcoded header codes for reliable detection
+    allQRClasses.filter(function(c){
+      var n=parseInt(c.code);
+      return c.is_header===true || CLASS_HEADER_CODES.indexOf(n)>=0;
+    }).forEach(function(c){
       parent.insertAdjacentHTML('beforeend','<option value="'+c.code+'">'+c.code+' - '+c.name+'</option>');
     });
   }
@@ -3505,7 +3509,10 @@ function editQRClass(id){
   var typeOpts='<option value="header"'+(c.is_header?' selected':'')+'>Header</option>'+
                '<option value="subclass"'+(!c.is_header?' selected':'')+'>Sub-class</option>';
                '<option value="subclass"'+(!c.is_header?' selected':'')+'>Sub-class</option>';
-  allQRClasses.filter(function(x){return x.is_header;}).forEach(function(x){
+  allQRClasses.filter(function(x){
+    var n=parseInt(x.code);
+    return x.is_header===true || CLASS_HEADER_CODES.indexOf(n)>=0;
+  }).forEach(function(x){
     parentOpts+='<option value="'+x.code+'"'+(c.parent_code===x.code?' selected':'')+'>'+x.code+' - '+x.name+'</option>';
   });
   row.innerHTML=
