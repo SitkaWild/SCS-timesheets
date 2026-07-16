@@ -1,4 +1,5 @@
 <!DOCTYPE html>
+<!-- v202607162221-->
 <html lang="en">
 <head>
 <meta charset="UTF-8"/>
@@ -3343,14 +3344,15 @@ function updateNestUnderCls(){
   var t = type.value;
   parent.innerHTML = '<option value="">-- none --</option>';
   if(t==='subclass'){
-    // Show class headers - either is_header flag or detect from data
-    var headers = allClasses.filter(function(c){return c.is_header===true;});
-    // Fallback: if no is_header flags yet, use classes with 3-digit round codes
-    if(!headers.length){
-      headers = allClasses.filter(function(c){
-        var n=parseInt(c.code);return n&&n%100===0;
-      });
-    }
+    // Show class headers - use is_header flag if set, otherwise detect
+    var headers = allClasses.filter(function(c){
+      if(c.is_header===true) return true;
+      // Fallback detection: ALL CAPS name, or code is a round hundred (100,200,400,500 etc)
+      var n=parseInt(c.code);
+      var isRoundHundred = n && n%100===0;
+      var isAllCaps = c.name === c.name.toUpperCase() && c.name.length > 3;
+      return isRoundHundred || isAllCaps;
+    });
     headers.forEach(function(c){
       parent.insertAdjacentHTML('beforeend','<option value="'+c.code+'">'+c.code+' - '+c.name+'</option>');
     });
