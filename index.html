@@ -3362,6 +3362,18 @@ function isClassHeader(c){
   return CLASS_HEADER_CODES.indexOf(n)>=0;
 }
 
+// Static header list for timesheet classes nest under
+var STATIC_CLASS_HEADERS = [
+  {code:'200',name:'Wilderness Projects'},
+  {code:'300',name:'Lobbying'},
+  {code:'400',name:'NFF Agreements'},
+  {code:'500',name:'Forest Service Agreements'},
+  {code:'600',name:'Communications'},
+  {code:'700',name:'Community Sustainability Projects'},
+  {code:'800',name:'Comm. Sus. Youth Development Prog.'},
+  {code:'900',name:'USDA OTR Agreements'}
+];
+
 function updateNestUnderCls(){
   var type = document.getElementById('nc-type');
   var parent = document.getElementById('nc-parent');
@@ -3369,8 +3381,15 @@ function updateNestUnderCls(){
   var t = type.value;
   parent.innerHTML = '<option value="">-- none --</option>';
   if(t==='subclass'){
+    // Use static list + any DB headers
+    var shown = {};
+    STATIC_CLASS_HEADERS.forEach(function(h){
+      parent.insertAdjacentHTML('beforeend','<option value="'+h.code+'">'+h.code+' - '+h.name+'</option>');
+      shown[h.code]=true;
+    });
+    // Also add any DB classes marked as header not already shown
     allClasses.filter(function(c){
-      return CLASS_HEADER_CODES.indexOf(parseInt(c.code))>=0;
+      return c.is_header===true && !shown[c.code];
     }).forEach(function(c){
       parent.insertAdjacentHTML('beforeend','<option value="'+c.code+'">'+c.code+' - '+c.name+'</option>');
     });
@@ -3464,12 +3483,19 @@ function updateQRClsNestUnder(){
   if(!type||!parent) return;
   parent.innerHTML = '<option value="">-- none --</option>';
   if(type.value==='subclass'){
-    // Use hardcoded header codes for reliable detection
+    // Use allQRClasses headers (those with is_header=true and numeric codes)
+    var shownQR={};
     allQRClasses.filter(function(c){
       var n=parseInt(c.code);
-      return c.is_header===true || CLASS_HEADER_CODES.indexOf(n)>=0;
+      return c.is_header===true && n>0;
     }).forEach(function(c){
       parent.insertAdjacentHTML('beforeend','<option value="'+c.code+'">'+c.code+' - '+c.name+'</option>');
+      shownQR[c.code]=true;
+    });
+    // Also show static headers not already shown
+    STATIC_CLASS_HEADERS.forEach(function(h){
+      if(!shownQR[h.code])
+        parent.insertAdjacentHTML('beforeend','<option value="'+h.code+'">'+h.code+' - '+h.name+'</option>');
     });
   }
 }
@@ -3509,11 +3535,14 @@ function editQRClass(id){
   var typeOpts='<option value="header"'+(c.is_header?' selected':'')+'>Header</option>'+
                '<option value="subclass"'+(!c.is_header?' selected':'')+'>Sub-class</option>';
                '<option value="subclass"'+(!c.is_header?' selected':'')+'>Sub-class</option>';
-  allQRClasses.filter(function(x){
-    var n=parseInt(x.code);
-    return x.is_header===true || CLASS_HEADER_CODES.indexOf(n)>=0;
-  }).forEach(function(x){
+  var shownEdit={};
+  allQRClasses.filter(function(x){return x.is_header===true && parseInt(x.code)>0;}).forEach(function(x){
     parentOpts+='<option value="'+x.code+'"'+(c.parent_code===x.code?' selected':'')+'>'+x.code+' - '+x.name+'</option>';
+    shownEdit[x.code]=true;
+  });
+  STATIC_CLASS_HEADERS.forEach(function(h){
+    if(!shownEdit[h.code])
+      parentOpts+='<option value="'+h.code+'"'+(c.parent_code===h.code?' selected':'')+'>'+h.code+' - '+h.name+'</option>';
   });
   row.innerHTML=
     '<td><input type="text" id="qce-code-'+id+'" value="'+c.code+'" style="width:55px;font-size:12px;padding:3px 4px;border:1px solid var(--border-lt);border-radius:3px;"/></td>'+
@@ -3561,13 +3590,20 @@ function saveQRClasses(){
 }
 
 function initQRClasses(){
-  // Load from localStorage if available, otherwise use REF_CLASSES
+  // Clear old bad localStorage data if headers have wrong codes
   try{
     var saved=localStorage.getItem(QR_CLS_KEY);
     if(saved){
-      allQRClasses=JSON.parse(saved)||[];
-      REF_CLASSES=allQRClasses.map(function(c){return {code:c.code,name:c.name,parent:c.is_header};});
-      return;
+      var parsed=JSON.parse(saved)||[];
+      // Check if first header has a numeric code - if not, it's old bad data
+      var firstHeader=parsed.find(function(c){return c.is_header;});
+      if(firstHeader && !parseInt(firstHeader.code)){
+        localStorage.removeItem(QR_CLS_KEY);
+      } else {
+        allQRClasses=parsed;
+        REF_CLASSES=allQRClasses.map(function(c){return {code:c.code,name:c.name,parent:c.is_header};});
+        return;
+      }
     }
   }catch(e){}
   // Default from REF_CLASSES
@@ -3722,7 +3758,7 @@ function showQRTab(tab){
 var REF_CLASSES = [
   {code:'100',name:'General Fund',parent:false},
   {code:'110',name:'Boat Trips',parent:false},
-  {code:'200',name:'WILDERNESS PROJECTS',parent:true},
+  {code:'200',name:'Wilderness Projects',parent:true},
   {code:'210',name:'Living Wilderness Fund',parent:false},
   {code:'220',name:'SPF Property',parent:false},
   {code:'221',name:'Sea Pony Press',parent:false},
