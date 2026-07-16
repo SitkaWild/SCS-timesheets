@@ -400,13 +400,30 @@ input[type=number]{width:80px;text-align:right;}
             <tbody id="acct-list"><tr><td colspan="4" class="loading">Loading...</td></tr></tbody>
           </table>
         </div>
-        <!-- Classes panel -->
+        <!-- Classes panel - same structure as accounts -->
         <div id="qr-panel-cls" style="display:none;">
-          <div id="qr-cls-rows"></div>
-          <button class="btn btn-sm" onclick="addQRClsRow()" style="margin-top:8px;">+ Add class entry</button>
-          <div class="btn-row" style="margin-top:1rem;">
-            <button class="btn btn-primary" onclick="saveQRGrid()">Save class changes</button>
+          <div style="margin-bottom:1rem;">
+            <div style="font-size:14px;font-weight:600;margin-bottom:.75rem;">Add class</div>
+            <div style="display:grid;grid-template-columns:80px 1fr 100px 1fr 80px;gap:10px;align-items:end;">
+              <div><label class="fl" for="nc-qr-code">Code</label><input type="text" id="nc-qr-code" placeholder="e.g. 210"/></div>
+              <div><label class="fl" for="nc-qr-name">Name</label><input type="text" id="nc-qr-name" placeholder="e.g. Living Wilderness"/></div>
+              <div><label class="fl" for="nc-qr-type">Type</label>
+                <select id="nc-qr-type" style="width:100%;" onchange="updateQRClsNestUnder()">
+                  <option value="header">Header</option>
+                  <option value="subclass" selected>Sub-class</option>
+                </select>
+              </div>
+              <div><label class="fl" for="nc-qr-parent">Nest under</label>
+                <select id="nc-qr-parent" style="width:100%;"><option value="">-- none --</option></select>
+              </div>
+              <div><label class="fl">&nbsp;</label><button class="btn btn-primary" onclick="addQRClass()">+ Add</button></div>
+            </div>
+            <div id="qr-cls-msg" class="flash"></div>
           </div>
+          <table class="ct">
+            <thead><tr><th>Code</th><th>Name</th><th>Type</th><th>Nest under</th><th></th></tr></thead>
+            <tbody id="qr-cls-list"><tr><td colspan="5" class="loading">Loading...</td></tr></tbody>
+          </table>
         </div>
         <div id="ref-edit-msg" class="flash"></div>
       </div>
@@ -3337,6 +3354,16 @@ function updateNestUnderAcct(){
   }
 }
 
+function isClassHeader(c){
+  if(c.is_header===true) return true;
+  var n=parseInt(c.code);
+  // Round hundreds: 100,200,300,400,500,600,700,800,900
+  if(n && n%100===0 && n<1000) return true;
+  // All-caps name (like WILDERNESS PROJECTS)
+  if(c.name && c.name===c.name.toUpperCase() && c.name.replace(/[^A-Z]/g,'').length>3) return true;
+  return false;
+}
+
 function updateNestUnderCls(){
   var type = document.getElementById('nc-type');
   var parent = document.getElementById('nc-parent');
@@ -3344,16 +3371,7 @@ function updateNestUnderCls(){
   var t = type.value;
   parent.innerHTML = '<option value="">-- none --</option>';
   if(t==='subclass'){
-    // Show class headers - use is_header flag if set, otherwise detect
-    var headers = allClasses.filter(function(c){
-      if(c.is_header===true) return true;
-      // Fallback detection: ALL CAPS name, or code is a round hundred (100,200,400,500 etc)
-      var n=parseInt(c.code);
-      var isRoundHundred = n && n%100===0;
-      var isAllCaps = c.name === c.name.toUpperCase() && c.name.length > 3;
-      return isRoundHundred || isAllCaps;
-    });
-    headers.forEach(function(c){
+    allClasses.filter(isClassHeader).forEach(function(c){
       parent.insertAdjacentHTML('beforeend','<option value="'+c.code+'">'+c.code+' - '+c.name+'</option>');
     });
   }
@@ -3394,6 +3412,161 @@ async function approveAllVisibleReimb(){
     await sb.from('reimbursements').update({status:'approved',rejection_reason:null}).eq('id',pending[i].id);
   }
   renderReimbApprovals();
+}
+
+// --- QR CLASSES MANAGEMENT ---
+var allQRClasses = []; // loaded from REF_CLASSES array
+
+function loadQRClasses(){
+  // Build from REF_CLASSES array
+  allQRClasses = REF_CLASSES.map(function(c,i){
+    return {id:'qrc-'+i, code:c.code, name:c.name, is_header:c.parent, parent_code:''};
+  });
+  renderQRClassList();
+  updateQRClsNestUnder();
+}
+
+function renderQRClassList(){
+  var body = document.getElementById('qr-cls-list');
+  if(!body) return;
+  if(!allQRClasses.length){body.innerHTML='<tr><td colspan="5" class="empty">No classes yet</td></tr>';return;}
+  var frag = document.createDocumentFragment();
+  allQRClasses.forEach(function(c){
+    var tr = document.createElement('tr');
+    tr.id = 'qrcrow-'+c.id;
+    var td1=document.createElement('td');td1.className='mono';td1.textContent=c.code;
+    var td2=document.createElement('td');
+    td2.textContent=c.name;
+    if(c.is_header){td2.style.fontWeight='700';}
+    else{td2.style.paddingLeft='16px';}
+    var td3=document.createElement('td');td3.style.fontSize='11px';td3.style.color='var(--t2)';
+    td3.textContent=c.is_header?'Header':'Sub-class';
+    var td4=document.createElement('td');td4.style.fontSize='11px';td4.style.color='var(--t3)';
+    td4.textContent=c.parent_code||'';
+    var td5=document.createElement('td');td5.style.whiteSpace='nowrap';
+    var editBtn=document.createElement('button');editBtn.className='btn btn-sm';editBtn.textContent='Edit';
+    var delBtn=document.createElement('button');delBtn.className='btn btn-sm btn-danger';delBtn.textContent='Remove';
+    delBtn.style.marginLeft='4px';
+    var cid=c.id;
+    editBtn.addEventListener('click',function(){editQRClass(cid);});
+    delBtn.addEventListener('click',function(){deleteQRClass(cid);});
+    td5.appendChild(editBtn);td5.appendChild(delBtn);
+    tr.appendChild(td1);tr.appendChild(td2);tr.appendChild(td3);tr.appendChild(td4);tr.appendChild(td5);
+    frag.appendChild(tr);
+  });
+  body.innerHTML='';
+  body.appendChild(frag);
+}
+
+function updateQRClsNestUnder(){
+  var type = document.getElementById('nc-qr-type');
+  var parent = document.getElementById('nc-qr-parent');
+  if(!type||!parent) return;
+  parent.innerHTML = '<option value="">-- none --</option>';
+  if(type.value==='subclass'){
+    allQRClasses.filter(function(c){return c.is_header;}).forEach(function(c){
+      parent.insertAdjacentHTML('beforeend','<option value="'+c.code+'">'+c.code+' - '+c.name+'</option>');
+    });
+  }
+}
+
+function addQRClass(){
+  var code = document.getElementById('nc-qr-code').value.trim();
+  var name = document.getElementById('nc-qr-name').value.trim();
+  var type = document.getElementById('nc-qr-type').value;
+  var parentCode = document.getElementById('nc-qr-parent').value;
+  var msg = document.getElementById('qr-cls-msg');
+  if(!name){flash(msg,'Please enter a class name.','err');return;}
+  var isHeader = type==='header';
+  var newCls = {id:'qrc-'+Date.now(), code:code, name:name, is_header:isHeader, parent_code:parentCode};
+  // Insert after parent if specified
+  if(parentCode){
+    var parentIdx = allQRClasses.findIndex(function(c){return c.code===parentCode;});
+    if(parentIdx>=0){
+      // Find last child of parent
+      var insertAt = parentIdx+1;
+      while(insertAt<allQRClasses.length && !allQRClasses[insertAt].is_header){insertAt++;}
+      allQRClasses.splice(insertAt,0,newCls);
+    } else {allQRClasses.push(newCls);}
+  } else {
+    allQRClasses.push(newCls);
+  }
+  saveQRClasses();
+  document.getElementById('nc-qr-code').value='';
+  document.getElementById('nc-qr-name').value='';
+  renderQRClassList();
+  updateQRClsNestUnder();
+  flash(msg,'"'+name+'" added.','ok');
+}
+
+function editQRClass(id){
+  var c = allQRClasses.find(function(x){return x.id===id;});if(!c)return;
+  var row = document.getElementById('qrcrow-'+id);if(!row)return;
+  var typeOpts='<option value="header"'+(c.is_header?' selected':'')+'>Header</option>'+
+               '<option value="subclass"'+(!c.is_header?' selected':'')+'>Sub-class</option>';
+               '<option value="subclass"'+(!c.is_header?' selected':'')+'>Sub-class</option>';
+  allQRClasses.filter(function(x){return x.is_header;}).forEach(function(x){
+    parentOpts+='<option value="'+x.code+'"'+(c.parent_code===x.code?' selected':'')+'>'+x.code+' - '+x.name+'</option>';
+  });
+  row.innerHTML=
+    '<td><input type="text" id="qce-code-'+id+'" value="'+c.code+'" style="width:55px;font-size:12px;padding:3px 4px;border:1px solid var(--border-lt);border-radius:3px;"/></td>'+
+    '<td><input type="text" id="qce-name-'+id+'" value="'+c.name.replace(/"/g,'&quot;')+'" style="font-size:12px;padding:3px 5px;border:1px solid var(--border-lt);border-radius:3px;width:100%;"/></td>'+
+    '<td><select id="qce-type-'+id+'" style="font-size:11px;padding:3px;">'+typeOpts+'</select></td>'+
+    '<td><select id="qce-parent-'+id+'" style="font-size:11px;padding:3px;">'+parentOpts+'</select></td>'+
+    '<td style="white-space:nowrap;">'+
+      '<button class="btn btn-sm btn-primary" onclick="saveQRClassEdit(this.dataset.cid)" data-cid="'+id+'">Save</button> '+
+      '<button class="btn btn-sm" onclick="renderQRClassList()">Cancel</button>'+
+    '</td>';
+  setTimeout(function(){var el=document.getElementById('qce-name-'+id);if(el){el.focus();el.select();}},50);
+}
+
+function saveQRClassEdit(id){
+  var c = allQRClasses.find(function(x){return x.id===id;});if(!c)return;
+  var codeEl=document.getElementById('qce-code-'+id);
+  var nameEl=document.getElementById('qce-name-'+id);
+  var typeEl=document.getElementById('qce-type-'+id);
+  var parentEl=document.getElementById('qce-parent-'+id);
+  if(nameEl) c.name=nameEl.value.trim();
+  if(codeEl) c.code=codeEl.value.trim();
+  if(typeEl) c.is_header=typeEl.value==='header';
+  if(parentEl) c.parent_code=parentEl.value;
+  saveQRClasses();
+  renderQRClassList();
+  updateQRClsNestUnder();
+}
+
+function deleteQRClass(id){
+  var c=allQRClasses.find(function(x){return x.id===id;});
+  if(!confirm('Remove "'+( c?c.name:id)+'"?'))return;
+  allQRClasses=allQRClasses.filter(function(x){return x.id!==id;});
+  saveQRClasses();
+  renderQRClassList();
+}
+
+var QR_CLS_KEY='scs_qr_classes';
+
+function saveQRClasses(){
+  // Update REF_CLASSES from allQRClasses
+  REF_CLASSES = allQRClasses.map(function(c){
+    return {code:c.code,name:c.name,parent:c.is_header};
+  });
+  localStorage.setItem(QR_CLS_KEY, JSON.stringify(allQRClasses));
+}
+
+function initQRClasses(){
+  // Load from localStorage if available, otherwise use REF_CLASSES
+  try{
+    var saved=localStorage.getItem(QR_CLS_KEY);
+    if(saved){
+      allQRClasses=JSON.parse(saved)||[];
+      REF_CLASSES=allQRClasses.map(function(c){return {code:c.code,name:c.name,parent:c.is_header};});
+      return;
+    }
+  }catch(e){}
+  // Default from REF_CLASSES
+  allQRClasses=REF_CLASSES.map(function(c,i){
+    return {id:'qrc-'+i,code:c.code,name:c.name,is_header:c.parent,parent_code:''};
+  });
 }
 
 // --- QR GRID MANAGEMENT ---
@@ -3534,7 +3707,7 @@ function showQRTab(tab){
     clsPanel.style.display='block';
     if(clsBtn){clsBtn.style.borderBottomColor='var(--accent)';clsBtn.style.color='var(--accent)';clsBtn.style.background='#fff';}
     if(acctBtn){acctBtn.style.borderBottomColor='transparent';acctBtn.style.color='var(--t2)';acctBtn.style.background='transparent';}
-    renderQRClsRows();
+    loadQRClasses();
   }
 }
 
@@ -3852,6 +4025,7 @@ async function boot(){
     sb=supabase.createClient(SB_URL,SB_KEY);
     setupNumpad();
     initRefData();
+    initQRClasses();
     var cfg=getEJSConfig();
     if(cfg.pubKey)emailjs.init(cfg.pubKey);
     await initLogin();
