@@ -3093,8 +3093,9 @@ function showRefPanelTab(tab){
 // --- ACCOUNTS ---
 async function renderAccounts(){
   var body = document.getElementById('acct-list');
-  if(!body) return;
+  if(!body){console.log('renderAccounts: acct-list not found');return;}
   var r = await sb.from('accounts').select('*').order('sort_order');
+  console.log('renderAccounts result:', r.data ? r.data.length+' rows' : 'null', r.error ? r.error.message : 'no error');
   var data = r.data||[];
   if(r.error){body.innerHTML='<tr><td colspan="4" class="empty" style="color:var(--red);">Error loading: '+r.error.message+'</td></tr>';return;}
   if(!data.length){body.innerHTML='<tr><td colspan="4" class="empty">No accounts yet — click + Add to add</td></tr>';return;}
