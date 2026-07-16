@@ -344,9 +344,18 @@ input[type=number]{width:80px;text-align:right;}
       </div>
       <div class="card">
         <div style="font-size:15px;font-weight:600;margin-bottom:1rem;">Add a new class</div>
-        <div style="display:grid;grid-template-columns:90px 1fr 130px 80px;gap:10px;align-items:end;margin-bottom:4px;">
+        <div style="display:grid;grid-template-columns:90px 1fr 110px 110px 1fr 80px;gap:10px;align-items:end;margin-bottom:4px;">
           <div><label class="fl" for="nc-code">QB code</label><input type="text" id="nc-code" placeholder="e.g. 215"/></div>
           <div><label class="fl" for="nc-name">Class name</label><input type="text" id="nc-name" placeholder="e.g. Forest Program"/></div>
+          <div><label class="fl" for="nc-type">Type</label>
+            <select id="nc-type" style="width:100%;" onchange="updateNestUnderCls()">
+              <option value="header">Header</option>
+              <option value="subclass" selected>Sub-class</option>
+            </select>
+          </div>
+          <div><label class="fl" for="nc-parent">Nest under</label>
+            <select id="nc-parent" style="width:100%;"><option value="">-- none --</option></select>
+          </div>
           <div><label class="fl" for="nc-cat">Category</label><select id="nc-cat"></select></div>
           <div><label class="fl">&nbsp;</label><button class="btn btn-primary" onclick="addClass()">+ Add</button></div>
         </div>
@@ -368,15 +377,18 @@ input[type=number]{width:80px;text-align:right;}
         <div id="qr-panel-acct">
           <div style="margin-bottom:1rem;">
             <div style="font-size:14px;font-weight:600;margin-bottom:.75rem;">Add account</div>
-            <div style="display:grid;grid-template-columns:80px 1fr 120px 80px;gap:10px;align-items:end;">
+            <div style="display:grid;grid-template-columns:80px 1fr 120px 1fr 80px;gap:10px;align-items:end;flex-wrap:wrap;">
               <div><label class="fl" for="na-code">Code</label><input type="text" id="na-code" placeholder="e.g. 6850"/></div>
               <div><label class="fl" for="na-name">Name</label><input type="text" id="na-name" placeholder="e.g. Supplies"/></div>
               <div><label class="fl" for="na-type">Type</label>
-                <select id="na-type" style="width:100%;">
+                <select id="na-type" style="width:100%;" onchange="updateNestUnderAcct()">
                   <option value="header">Header</option>
                   <option value="subheader">Sub-header</option>
                   <option value="subheader2" selected>Sub-header 2</option>
                 </select>
+              </div>
+              <div><label class="fl" for="na-parent">Nest under</label>
+                <select id="na-parent" style="width:100%;"><option value="">-- none --</option></select>
               </div>
               <div><label class="fl">&nbsp;</label><button class="btn btn-primary" onclick="addAccount()">+ Add</button></div>
             </div>
@@ -796,6 +808,16 @@ document.addEventListener('keydown',function(e){
 async function enterApp(){
   showScreen('app');
   document.getElementById('nav-uname').textContent=currentUser.name;
+  // Load accounts from Supabase into allAccountsData
+  var ar = await sb.from('accounts').select('*');
+  if(!ar.error && ar.data){
+    allAccountsData = (ar.data||[]).sort(function(a,b){
+      var an=parseInt(a.code)||0,bn=parseInt(b.code)||0;
+      if(an&&bn)return an-bn;
+      return a.code.localeCompare(b.code);
+    });
+    REF_ACCOUNTS = allAccountsData.map(function(a){return {code:a.code,name:a.name,type:a.type||'header'};});
+  }
   var tabs=document.getElementById('nav-tabs');
   // Remove all dynamic tabs first
   ['dashboard','timesheet','history','approvals','users','classes','notifications','reimb','reimb-approvals'].forEach(function(id){
@@ -1759,6 +1781,8 @@ async function renderClasses(){
     if(an&&bn)return an-bn;if(an)return -1;if(bn)return 1;
     return a.code.localeCompare(b.code);
   });
+  // Refresh nest under dropdown for classes
+  setTimeout(updateNestUnderCls, 100);
   var body=document.getElementById('class-list');
   if(!allClasses.length){body.innerHTML='<tr><td colspan="4" class="empty">No classes yet</td></tr>';return;}
   var frag=document.createDocumentFragment();
@@ -1815,14 +1839,30 @@ async function addClass(){
   var code=document.getElementById('nc-code').value.trim();
   var name=document.getElementById('nc-name').value.trim();
   var cat=document.getElementById('nc-cat').value;
+  var type=document.getElementById('nc-type')?document.getElementById('nc-type').value:'subclass';
+  var parentCode=document.getElementById('nc-parent')?document.getElementById('nc-parent').value:'';
+  var isHeader=type==='header';
   var msg=document.getElementById('class-msg');
-  if(!code||!name){flash(msg,'Please fill in both QB code and class name.','err');return;}
-  var maxO=allClasses.reduce(function(m,c){return Math.max(m,c.sort_order||0);},0);
-  var r=await sb.from('classes').insert({code:code,name:name,category:cat,sort_order:maxO+1});
-  if(r.error){flash(msg,r.error.message.indexOf('unique')>=0?'That QB code already exists.':r.error.message,'err');return;}
+  if(!name){flash(msg,'Please fill in a class name.','err');return;}
+  if(!isHeader&&!code){flash(msg,'Please fill in a QB code.','err');return;}
+  // Calculate sort order - after parent's children or max+1
+  var numCode=parseInt(code)||0;
+  var sortOrder=numCode||allClasses.reduce(function(m,c){return Math.max(m,c.sort_order||0);},0)+1;
+  if(parentCode){
+    sortOrder=getSortOrderAfterParent(parentCode, allClasses.map(function(c){
+      return {code:c.code,sort_order:c.sort_order,type:c.is_header?'header':'subclass'};
+    }), numCode);
+  }
+  var r=await sb.from('classes').insert({code:code||name,name:name,category:cat,sort_order:sortOrder,is_header:isHeader,parent_code:parentCode||null});
+  if(r.error){
+    // Try without new columns if they don't exist
+    var r2=await sb.from('classes').insert({code:code||name,name:name,category:cat,sort_order:sortOrder});
+    if(r2.error){flash(msg,r2.error.message.indexOf('unique')>=0?'That QB code already exists.':r2.error.message,'err');return;}
+  }
   document.getElementById('nc-code').value='';document.getElementById('nc-name').value='';
   flash(msg,'"'+name+'" added.','ok');
   allClasses=await fetchClasses();renderClasses();buildTSTable();
+  updateNestUnderCls();
 }
 async function deleteClass(id,name){
   if(!confirm('Remove "'+name+'"?'))return;
@@ -1852,6 +1892,7 @@ async function renderCats(){
   list.appendChild(frag);
   var sel=document.getElementById('nc-cat');
   if(sel)sel.innerHTML=allCats.map(function(c){return '<option value="'+c+'">'+c+'</option>';}).join('');
+  updateNestUnderCls();
 }
 async function addCategory(){
   var name=document.getElementById('ncat-name').value.trim();
@@ -3095,7 +3136,6 @@ async function renderAccounts(){
   var body = document.getElementById('acct-list');
   if(!body){console.log('renderAccounts: acct-list not found');return;}
   var r = await sb.from('accounts').select('*').order('sort_order');
-  console.log('renderAccounts result:', r.data ? r.data.length+' rows' : 'null', r.error ? r.error.message : 'no error');
   var data = r.data||[];
   if(r.error){body.innerHTML='<tr><td colspan="4" class="empty" style="color:var(--red);">Error loading: '+r.error.message+'</td></tr>';return;}
   if(!data.length){body.innerHTML='<tr><td colspan="4" class="empty">No accounts yet — click + Add to add</td></tr>';return;}
@@ -3123,17 +3163,29 @@ async function renderAccounts(){
 async function addAccount(){
   var code = document.getElementById('na-code').value.trim();
   var name = document.getElementById('na-name').value.trim();
-  var type = document.getElementById('na-type').value;
+  var type = document.getElementById('na-type') ? document.getElementById('na-type').value : 'subheader2';
+  var parentCode = document.getElementById('na-parent') ? document.getElementById('na-parent').value : '';
   var msg = document.getElementById('acct-msg');
   if(!code||!name){flash(msg,'Please enter both code and name.','err');return;}
-  // sort_order based on numeric code for correct ordering
   var numCode = parseInt(code)||0;
-  var ins = await sb.from('accounts').insert({code:code,name:name,type:type,sort_order:numCode});
-  if(ins.error){flash(msg,ins.error.message,'err');return;}
+  // Calculate sort order - place after parent's last child, or use numeric code
+  var sortOrder = numCode;
+  if(parentCode && allAccountsData.length){
+    sortOrder = getSortOrderAfterParent(parentCode, allAccountsData, numCode);
+  }
+  var ins = await sb.from('accounts').insert({code:code,name:name,type:type,sort_order:sortOrder,parent_code:parentCode||null});
+  if(ins.error){
+    if(ins.error.message.indexOf('column')>=0){
+      // parent_code column might not exist yet, try without it
+      ins = await sb.from('accounts').insert({code:code,name:name,type:type,sort_order:sortOrder});
+    }
+    if(ins.error){flash(msg,ins.error.message,'err');return;}
+  }
   document.getElementById('na-code').value='';
   document.getElementById('na-name').value='';
   flash(msg,'Account added.','ok');
   renderAccounts();
+  updateNestUnderAcct();
 }
 
 function inlineEditAccount(id){
@@ -3208,6 +3260,56 @@ function downloadReimbPDF(){
     buildReimbPrintHTML(fakeSub)+
     '</body></html>');
   win.document.close();
+}
+
+// --- NEST UNDER HELPERS ---
+function updateNestUnderAcct(){
+  var type = document.getElementById('na-type');
+  var parent = document.getElementById('na-parent');
+  if(!type||!parent) return;
+  var t = type.value;
+  parent.innerHTML = '<option value="">-- none --</option>';
+  if(t==='subheader'){
+    // Show headers as options
+    allAccountsData.filter(function(a){return a.type==='header';}).forEach(function(a){
+      parent.insertAdjacentHTML('beforeend','<option value="'+a.code+'">'+a.code+' - '+a.name+'</option>');
+    });
+  } else if(t==='subheader2'){
+    // Show subheaders as options
+    allAccountsData.filter(function(a){return a.type==='subheader';}).forEach(function(a){
+      parent.insertAdjacentHTML('beforeend','<option value="'+a.code+'">'+a.code+' - '+a.name+'</option>');
+    });
+  }
+}
+
+function updateNestUnderCls(){
+  var type = document.getElementById('nc-type');
+  var parent = document.getElementById('nc-parent');
+  if(!type||!parent) return;
+  var t = type.value;
+  parent.innerHTML = '<option value="">-- none --</option>';
+  if(t==='subclass'){
+    // Show class headers as options
+    allClasses.filter(function(c){return c.is_header;}).forEach(function(c){
+      parent.insertAdjacentHTML('beforeend','<option value="'+c.code+'">'+c.code+' - '+c.name+'</option>');
+    });
+  }
+}
+
+function getSortOrderAfterParent(parentCode, allData, codeNum){
+  if(!parentCode) return codeNum;
+  // Find all items under this parent and insert after the last one
+  var parentIdx = allData.findIndex(function(a){return a.code===parentCode;});
+  if(parentIdx<0) return codeNum;
+  // Find last child of this parent
+  var lastChildOrder = allData[parentIdx].sort_order;
+  for(var i=parentIdx+1;i<allData.length;i++){
+    var a = allData[i];
+    if(a.type==='header'||a.type==='subclass') break; // hit next header
+    if(parentCode && (a.type==='subheader'||a.type==='subclass')) break;
+    lastChildOrder = a.sort_order;
+  }
+  return lastChildOrder + 0.5; // insert after last child
 }
 
 // --- APPROVE ALL ---
@@ -3551,7 +3653,21 @@ function closeRefPanel(){
   if(panel){panel.style.display='none';refPanelOpen=false;}
 }
 
-function buildRefPanel(){
+async function buildRefPanel(){
+  // Load fresh accounts from Supabase if available
+  if(sb && allAccountsData.length === 0){
+    var r = await sb.from('accounts').select('*');
+    if(!r.error && r.data){
+      allAccountsData = (r.data||[]).sort(function(a,b){
+        var an=parseInt(a.code)||0,bn=parseInt(b.code)||0;
+        if(an&&bn)return an-bn;
+        return a.code.localeCompare(b.code);
+      });
+      REF_ACCOUNTS = allAccountsData.map(function(a){return {code:a.code,name:a.name,type:a.type||'header'};});
+    }
+  } else if(allAccountsData.length > 0){
+    REF_ACCOUNTS = allAccountsData.map(function(a){return {code:a.code,name:a.name,type:a.type||'header'};});
+  }
   // Build classes list with hierarchy
   var clsList = document.getElementById('ref-classes-list');
   if(clsList){
