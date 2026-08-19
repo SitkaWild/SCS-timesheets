@@ -839,7 +839,7 @@ async function enterApp(){
   }
   var tabs=document.getElementById('nav-tabs');
   // Remove all dynamic tabs first
-  ['dashboard','timesheet','history','approvals','users','classes','notifications','reimb','reimb-approvals'].forEach(function(id){
+  ['dashboard','staff-dashboard','timesheet','history','approvals','users','classes','notifications','reimb','reimb-approvals'].forEach(function(id){
     var t=document.getElementById('ntab-'+id);if(t)t.remove();
   });
   // Build tab list based on role
@@ -855,6 +855,7 @@ async function enterApp(){
     ];
   } else {
     tabList=[
+      {id:'staff-dashboard',label:'Dashboard'},
       {id:'timesheet',label:'Timesheet'},
       {id:'history',label:'My history'},
       {id:'reimb',label:'Reimbursement'}
@@ -921,6 +922,7 @@ function showPanel(id,btn){
     },200);
   }
   if(id==='reimb-approvals')renderReimbApprovals();
+  if(id==='staff-dashboard'){initStaffDashboard();}
   if(id==='timesheet'){
     setTimeout(function(){
       initSig('sig-emp');
@@ -958,14 +960,33 @@ function initTS(){
   sel.innerHTML=PP.map(function(p,i){return '<option value="'+i+'">'+p.l+'</option>';}).join('');
   sel.value=best;updatePeriodInfo();buildTSGrid();
 }
-function updatePeriodInfo(){
+async function updatePeriodInfo(){
   var p=PP[+document.getElementById('pay-period').value];
   document.getElementById('pi-range').textContent=p.l;
   document.getElementById('pi-due').textContent=p.due;
   document.getElementById('pi-pay').textContent=p.pay;
+  var bar=document.getElementById('warn-bar');
+  // Check if already submitted for this period
+  if(currentUser){
+    var r=await sb.from('submissions').select('id,status').eq('user_id',currentUser.id).eq('period',p.l).limit(1);
+    if(r.data&&r.data.length){
+      var sub=r.data[0];
+      var statusColors={pending:'#7A4A08',approved:'#2A5F2A',rejected:'#8B2020'};
+      var statusLabels={pending:'Pending approval',approved:'Approved',rejected:'Rejected — check My History to edit'};
+      bar.style.display='flex';
+      bar.style.background=sub.status==='approved'?'#EFF5EF':sub.status==='rejected'?'#fdf0f0':'#fdf8ef';
+      bar.style.borderColor=statusColors[sub.status]||'var(--amber)';
+      document.getElementById('warn-text').style.color=statusColors[sub.status]||'var(--amber)';
+      document.getElementById('warn-text').textContent='✓ Timesheet for '+p.l+' has been submitted — '+(statusLabels[sub.status]||sub.status);
+      buildTSGrid();
+      return;
+    }
+  }
+  // Not submitted - show due date warning if applicable
   var dueDate=new Date(p.due+', '+(new Date(p.e).getFullYear()));
   var diff=Math.ceil((dueDate-new Date())/86400000);
-  var bar=document.getElementById('warn-bar');
+  bar.style.background='';bar.style.borderColor='';
+  document.getElementById('warn-text').style.color='';
   if(diff>=0&&diff<=3){
     bar.style.display='flex';
     document.getElementById('warn-text').textContent=diff===0?'Timesheet due TODAY ('+p.due+') -- submit now!':'Due in '+diff+' day'+(diff===1?'':'s')+' ('+p.due+').';
@@ -994,7 +1015,6 @@ function buildTSGrid(){
   // Build header
   var headHtml='<tr>';
   headHtml+='<th class="cls-col" style="text-align:left;">Class / Program</th>';
-  headHtml+='<th class="code-col">QB</th>';
   days.forEach(function(d){
     var isWeekend=d.getDay()===0||d.getDay()===6;
     headHtml+='<th style="min-width:30px;max-width:34px;padding:3px 1px;'+(isWeekend?'color:var(--t3);':'')+'">'
@@ -1002,6 +1022,7 @@ function buildTSGrid(){
       +'<div style="font-size:9px;font-weight:500;color:var(--t2);">'+d.getDate()+'</div>'
       +'</th>';
   });
+  headHtml+='<th class="code-col" style="border-left:1px solid var(--border);">QB</th>';
   headHtml+='<th class="total-col">Total</th>';
   headHtml+='</tr>';
   document.getElementById('ts-grid-head').className='tsg';
@@ -1017,16 +1038,17 @@ function buildTSGrid(){
     rows.forEach(function(c){
       bodyHtml+='<tr>';
       bodyHtml+='<td class="cls-name">'+c.name+'</td>';
-      var isLeave=(c.category==='Leave'||c.category==='leave');
-      if(isLeave){
-        bodyHtml+='<td class="cls-code"><input type="text" id="qb-'+c.id+'" placeholder="code" style="width:34px;font-size:10px;text-align:center;font-family:monospace;border:1px solid var(--border-lt);border-radius:3px;padding:2px 1px;background:var(--surface);"/></td>';
-      } else {
-        bodyHtml+='<td class="cls-code">'+c.code+'</td>';
-      }
+
       days.forEach(function(d,di){
         var isWeekend=d.getDay()===0||d.getDay()===6;
         bodyHtml+='<td style="padding:1px;'+(isWeekend?'background:#f8f8f6;':'')+'"><input type="number" class="tsg" id="g-'+c.id+'-'+di+'" min="0" max="24" step="0.25" placeholder="" oninput="updateGrid()" style="width:30px;"/></td>';
       });
+      var isLeaveB=(c.category==='Leave'||c.category==='leave');
+      if(isLeaveB){
+        bodyHtml+='<td class="cls-code" style="border-left:1px solid var(--border);"><input type="text" id="qb-'+c.id+'" placeholder="code" style="width:34px;font-size:10px;text-align:center;font-family:monospace;border:1px solid var(--border-lt);border-radius:3px;padding:2px 1px;background:var(--surface);"/></td>';
+      } else {
+        bodyHtml+='<td class="cls-code" style="border-left:1px solid var(--border);">'+c.code+'</td>';
+      }
       bodyHtml+='<td class="row-total" id="rt-'+c.id+'">0.0</td>';
       bodyHtml+='</tr>';
     });
@@ -1040,6 +1062,7 @@ function buildTSGrid(){
   days.forEach(function(d,di){
     footHtml+='<td class="day-total" id="dt-'+di+'">0.0</td>';
   });
+  footHtml+='<td style="border-top:2px solid var(--border);border-left:1px solid var(--border);"></td>';
   footHtml+='<td class="grand-total-cell" id="grand-total">0.0</td>';
   footHtml+='</tr>';
   document.getElementById('ts-grid-foot').className='tsg';
@@ -1566,165 +1589,46 @@ async function exportAllCSV(){
 }
 function batchPrint(){
   if(!approvalData.length){alert('No timesheets to print.');return;}
-  var pages=approvalData.map(function(s){
-    var rows=s.entries.map(function(e){
-      return '<tr><td style="padding:4px 8px;font-size:11px;color:#666;border-bottom:1px solid #eee;">'+e.category+'</td>'+
-        '<td style="padding:4px 8px;border-bottom:1px solid #eee;">'+e.name+'</td>'+
-        '<td style="padding:4px 8px;font-family:monospace;font-size:10px;color:#999;border-bottom:1px solid #eee;">'+e.code+'</td>'+
-        '<td style="padding:4px 8px;text-align:right;font-weight:600;border-bottom:1px solid #eee;">'+e.hours+'</td></tr>';
-    }).join('');
-    var sc=s.status==='approved'?'#2A5F2A':s.status==='rejected'?'#8B2020':'#7A4A08';
-    return '<div style="page-break-after:always;padding:2rem;font-family:Arial,sans-serif;font-size:13px;max-width:700px;margin:0 auto;">'+
-      '<h2 style="text-align:center;font-size:18px;margin-bottom:4px;">Sitka Conservation Society</h2>'+
-      '<div style="text-align:center;font-size:11px;color:#666;margin-bottom:1.5rem;text-transform:uppercase;letter-spacing:.08em;">Employee Time Sheet</div>'+
-      '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;background:#EFF5EF;border:1px solid #B8D4B8;border-radius:6px;padding:10px 14px;margin-bottom:1.5rem;">'+
-        '<div><div style="font-size:9px;font-weight:700;text-transform:uppercase;color:#2A5F2A;">Employee</div><div style="font-size:13px;font-weight:700;">'+s.staff_name+'</div></div>'+
-        '<div><div style="font-size:9px;font-weight:700;text-transform:uppercase;color:#2A5F2A;">Pay period</div><div style="font-size:13px;font-weight:700;">'+s.period+'</div></div>'+
-        '<div><div style="font-size:9px;font-weight:700;text-transform:uppercase;color:#2A5F2A;">Status</div><div style="font-size:13px;font-weight:700;color:'+sc+';">'+s.status.charAt(0).toUpperCase()+s.status.slice(1)+'</div></div>'+
+  var pages = approvalData.map(function(s){
+    var gridHtml = buildTSPrintGrid(s.entries||[], s.period);
+    var empSig = s.employee_signature ?
+      '<img src="'+s.employee_signature+'" style="height:44px;max-width:180px;"/>' :
+      '<div style="border-bottom:1px solid #333;height:44px;width:180px;"></div>';
+    var sigDate = s.employee_sig_date || '___________';
+    return '<div style="page-break-after:always;padding:1rem;">'+
+      '<h2 style="text-align:center;font-size:16px;margin-bottom:2px;">Sitka Conservation Society</h2>'+
+      '<div style="text-align:center;font-size:10px;color:#666;margin-bottom:.75rem;text-transform:uppercase;letter-spacing:.08em;">Employee Time Sheet</div>'+
+      '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;background:#EFF5EF;border:1px solid #B8D4B8;border-radius:6px;padding:8px 14px;margin-bottom:.75rem;">'+
+        '<div><span style="font-size:9px;font-weight:700;text-transform:uppercase;color:#2A5F2A;">Employee: </span><strong>'+s.staff_name+'</strong></div>'+
+        '<div><span style="font-size:9px;font-weight:700;text-transform:uppercase;color:#2A5F2A;">Pay period: </span><strong>'+s.period+'</strong></div>'+
       '</div>'+
-      '<table style="width:100%;border-collapse:collapse;margin-bottom:1rem;">'+
-        '<thead><tr style="background:#EFF5EF;"><th style="padding:6px 8px;font-size:9px;text-transform:uppercase;color:#666;text-align:left;border-bottom:1px solid #B8D4B8;">Category</th>'+
-        '<th style="padding:6px 8px;font-size:9px;text-transform:uppercase;color:#666;text-align:left;border-bottom:1px solid #B8D4B8;">Class</th>'+
-        '<th style="padding:6px 8px;font-size:9px;text-transform:uppercase;color:#666;text-align:left;border-bottom:1px solid #B8D4B8;">QB Code</th>'+
-        '<th style="padding:6px 8px;font-size:9px;text-transform:uppercase;color:#666;text-align:right;border-bottom:1px solid #B8D4B8;">Hours</th></tr></thead>'+
-        '<tbody>'+rows+'</tbody>'+
-        '<tfoot><tr><td colspan="3" style="padding:8px;font-weight:700;text-align:right;border-top:2px solid #B8D4B8;">Total hours</td>'+
-        '<td style="padding:8px;font-size:15px;font-weight:700;text-align:right;border-top:2px solid #B8D4B8;">'+parseFloat(s.total_hours).toFixed(1)+'</td></tr></tfoot>'+
-      '</table>'+
-      (s.notes?'<div style="background:#f9f9f7;border:1px solid #e0ddd7;border-radius:4px;padding:8px;font-size:11px;margin-bottom:1rem;"><strong>Notes:</strong> '+s.notes+'</div>':'')+
-      '<div style="display:grid;grid-template-columns:1fr 1fr;gap:24px;margin-top:1.5rem;">'+
-        '<div><div style="font-size:9px;font-weight:700;text-transform:uppercase;color:#666;margin-bottom:8px;">Employee signature</div>'+(s.employee_signature?'<img src="'+s.employee_signature+'" style="height:44px;max-width:180px;"/><br/>':'<div style="border-bottom:1px solid #333;height:44px;"></div>')+'<div style="font-size:10px;color:#666;margin-top:4px;">Date: '+(s.employee_sig_date||'___________')+'</div></div>'+
-        '<div><div style="font-size:9px;font-weight:700;text-transform:uppercase;color:#666;margin-bottom:8px;">Supervisor signature</div><div style="border-bottom:1px solid #333;height:44px;"></div><div style="font-size:10px;color:#666;margin-top:4px;">Date: ___________</div></div>'+
-      '</div></div>';
+      gridHtml+
+      (s.notes?'<div style="background:#f9f9f7;border:1px solid #e0ddd7;border-radius:4px;padding:6px;font-size:10px;margin-top:.5rem;"><strong>Notes:</strong> '+s.notes+'</div>':'')+
+      '<div style="display:grid;grid-template-columns:1fr 1fr;gap:24px;margin-top:1rem;">'+
+        '<div><div style="font-size:9px;font-weight:700;text-transform:uppercase;color:#666;margin-bottom:6px;">Employee signature</div>'+
+          empSig+
+          '<div style="font-size:10px;color:#666;margin-top:4px;">Date: '+sigDate+'</div></div>'+
+        '<div><div style="font-size:9px;font-weight:700;text-transform:uppercase;color:#666;margin-bottom:6px;">Supervisor signature</div>'+
+          '<div style="border-bottom:1px solid #333;height:44px;width:180px;"></div>'+
+          '<div style="font-size:10px;color:#666;margin-top:4px;">Date: ___________</div></div>'+
+      '</div>'+
+    '</div>';
   }).join('');
-  var win=window.open('','_blank');
-  if(!win){alert('Please allow popups to print.');return;}
-  var cnt=approvalData.length;
-  win.document.write('<!DOCTYPE html><html><head><meta charset="UTF-8"/><title>Batch Print</title>'+
-    '<style>@media print{.noprint{display:none;}}body{font-family:Arial,sans-serif;margin:0;}</style></head><body>'+
-    '<div class="noprint" style="padding:1rem;background:#EFF5EF;display:flex;gap:10px;align-items:center;">'+
-      '<strong>'+cnt+' timesheet'+(cnt===1?'':'s')+'</strong>'+
+  var win = window.open('','_blank');
+  if(!win){alert('Please allow popups.');return;}
+  win.document.write('<!DOCTYPE html><html><head><meta charset="UTF-8"/><title>Batch Timesheets</title>'+
+    '<style>body{font-family:Arial,sans-serif;font-size:11px;margin:0;padding:0;}'+
+    '@media print{.noprint{display:none;}}'+
+    '</style></head><body>'+
+    '<div class="noprint" style="padding:1rem;display:flex;gap:10px;">'+
       '<button onclick="window.print()" style="padding:8px 16px;background:#2A5F2A;color:#fff;border:none;border-radius:6px;cursor:pointer;">Print all</button>'+
-      '<button onclick="window.close()" style="padding:8px 16px;background:none;border:1px solid #ccc;border-radius:6px;cursor:pointer;">Close</button>'+
-    '</div>'+pages+'</body></html>');
+      '<button onclick="window.close()" style="padding:8px 16px;border:1px solid #ccc;border-radius:6px;cursor:pointer;background:none;">Close</button>'+
+    '</div>'+
+    pages+
+    '</body></html>');
   win.document.close();
 }
 
-// --- USERS ---
-async function renderUsers(){
-  var r=await sb.from('users').select('*');
-  var ln=function(n){var p=n.trim().split(/\s+/);return p.length>1?p[p.length-1]:p[0];};
-  allUsers=(r.data||[]).sort(function(a,b){return ln(a.name).localeCompare(ln(b.name));});
-  var list=document.getElementById('user-list');
-  if(!allUsers.length){list.innerHTML='<div class="empty">No staff yet</div>';return;}
-  var frag=document.createDocumentFragment();
-  allUsers.forEach(function(u){
-    var wrap=document.createElement('div');
-    wrap.className='ur';
-    wrap.id='ur-'+u.id;
-    // Name cell
-    var s1=document.createElement('span');
-    s1.style.fontWeight='500';
-    s1.textContent=u.name;
-    if(u.is_admin){
-      var pill=document.createElement('span');
-      pill.className='admin-pill';
-      pill.textContent='Admin';
-      pill.style.marginLeft='6px';
-      s1.appendChild(pill);
-    }
-    // Email cell
-    var s2=document.createElement('span');
-    s2.style.fontSize='12px';
-    s2.style.color='var(--t2)';
-    if(u.email){s2.textContent=u.email;}
-    else{s2.textContent='no email';s2.style.color='var(--t3)';}
-    // Role cell
-    var s3=document.createElement('span');
-    s3.style.fontSize='12px';
-    s3.style.color='var(--t2)';
-    s3.textContent=u.is_admin?'Admin':'Staff';
-    // Dot menu
-    var dm=document.createElement('div');
-    dm.className='dot-menu';
-    var dotBtn=document.createElement('button');
-    dotBtn.className='dot-btn';
-    dotBtn.textContent='...';
-    var uid=u.id;
-    dotBtn.addEventListener('click',function(){toggleDot(uid);});
-    var dd=document.createElement('div');
-    dd.className='dot-dd';
-    dd.id='dd-'+u.id;
-    // Menu items
-    function makeItem(label,fn,danger){
-      var btn=document.createElement('button');
-      btn.className='dot-item'+(danger?' danger':'');
-      btn.textContent=label;
-      btn.addEventListener('click',fn);
-      return btn;
-    }
-    dd.appendChild(makeItem('Edit name',function(){editUserName(uid);closeDots();}));
-    dd.appendChild(makeItem('Edit email',function(){editUserEmail(uid);closeDots();}));
-    dd.appendChild(makeItem('Change PIN',function(){editUserPIN(uid);closeDots();}));
-    var isMe=u.id===currentUser.id;
-    if(!isMe){
-      var isAdmin=u.is_admin;
-      dd.appendChild(makeItem(isAdmin?'Revoke admin':'Make admin',function(){toggleAdmin(uid,isAdmin);closeDots();}));
-      var hr=document.createElement('hr');hr.className='dot-hr';dd.appendChild(hr);
-      dd.appendChild(makeItem('Remove',function(){removeUser(uid);closeDots();},true));
-    } else {
-      var hr2=document.createElement('hr');hr2.className='dot-hr';dd.appendChild(hr2);
-      var sp=document.createElement('span');sp.className='dot-item';
-      sp.style.cssText='color:var(--t3);cursor:default;font-size:12px;';
-      sp.textContent='(your account)';
-      dd.appendChild(sp);
-    }
-    dm.appendChild(dotBtn);
-    dm.appendChild(dd);
-    wrap.appendChild(s1);
-    wrap.appendChild(s2);
-    wrap.appendChild(s3);
-    wrap.appendChild(dm);
-    frag.appendChild(wrap);
-  });
-  list.innerHTML='';
-  list.appendChild(frag);
-}
-async function addEmployee(){
-  var name=document.getElementById('ne-name').value.trim();
-  var pin=document.getElementById('ne-pin').value.trim();
-  var email=document.getElementById('ne-email').value.trim()||null;
-  var isAdmin=document.getElementById('ne-admin').checked;
-  var msg=document.getElementById('user-msg');
-  if(!name||!pin){flash(msg,'Please enter a name and PIN.','err');return;}
-  if(!/^\d{4}$/.test(pin)){flash(msg,'PIN must be exactly 4 digits.','err');return;}
-  var r=await sb.from('users').insert({name:name,pin:pin,email:email,is_admin:isAdmin,force_pin_change:true});
-  if(r.error){flash(msg,'Error: '+r.error.message,'err');return;}
-  document.getElementById('ne-name').value='';
-  document.getElementById('ne-pin').value='';
-  document.getElementById('ne-email').value='';
-  document.getElementById('ne-admin').checked=false;
-  flash(msg,name+' added.','ok');
-  renderUsers();refreshLoginUsers();
-}
-async function removeUser(id){
-  var u=allUsers.find(function(x){return x.id===id;});if(!u)return;
-  if(!confirm('Remove '+u.name+'?'))return;
-  await sb.from('users').delete().eq('id',id);
-  renderUsers();refreshLoginUsers();
-}
-async function toggleAdmin(id,cur){
-  await sb.from('users').update({is_admin:!cur}).eq('id',id);
-  renderUsers();
-}
-async function refreshLoginUsers(){
-  var r=await sb.from('users').select('*');
-  var ln=function(n){var p=n.trim().split(/\s+/);return p.length>1?p[p.length-1]:p[0];};
-  allUsers=(r.data||[]).sort(function(a,b){return ln(a.name).localeCompare(ln(b.name));});
-  var sel=document.getElementById('login-select');
-  if(sel)sel.innerHTML='<option value="">-- choose --</option>'+
-    allUsers.map(function(u){return '<option value="'+u.id+'">'+u.name+'</option>';}).join('');
-}
 function editUserName(id){
   closeDots();cancelUserEdit();
   var u=allUsers.find(function(x){return x.id===id;});if(!u)return;
@@ -2270,8 +2174,7 @@ function addReimbRow(){
     '<td style="padding:6px 8px;"><input type="number" id="rcost-'+n+'" min="0" step="0.01" placeholder="0.00" style="width:90px;font-size:13px;text-align:right;" oninput="updateReimbTotal()"/></td>'+
     '<td style="padding:6px 8px;"><input type="text" id="racct-'+n+'" placeholder="Account" style="font-size:13px;"/></td>'+
     '<td style="padding:6px 8px;">'+
-    '<select id="rcls-'+n+'" style="font-size:12px;" onchange="toggleOtherClass('+n+')"><option value="">-- class --</option>'+clsOptions+'</select>'+
-    '<input type="text" id="rclsother-'+n+'" placeholder="Specify class" style="display:none;font-size:12px;margin-top:4px;" />'+
+    '<input type="text" id="rcls-'+n+'" placeholder="QB class" style="font-size:12px;width:100%;"/>'+
     '</td>'+
     '<td style="padding:6px 8px;text-align:center;"><button onclick="removeReimbRow('+n+')" style="background:none;border:none;color:var(--red);cursor:pointer;font-size:16px;">x</button></td>';
   document.getElementById('reimb-rows').appendChild(row);
@@ -2927,8 +2830,25 @@ async function editTS(id){
       });
       if(s.notes) document.getElementById('ts-notes').value = s.notes;
       updateGrid();
+      // Restore signature
+      if(s.employee_signature){
+        var sigDate = document.getElementById('sig-emp-date');
+        if(sigDate && s.employee_sig_date) sigDate.value = s.employee_sig_date;
+        var img = new Image();
+        img.onload = function(){
+          var c = document.getElementById('sig-emp');
+          if(c){
+            var ctx = c.getContext('2d');
+            var dpr = window.devicePixelRatio||1;
+            ctx.clearRect(0,0,c.width,c.height);
+            ctx.drawImage(img,0,0,c.width/dpr,c.height/dpr);
+            sigStore['sig-emp'] = s.employee_signature;
+          }
+        };
+        img.src = s.employee_signature;
+      }
       var msg = document.getElementById('ts-msg');
-      msg.textContent = 'Submission cancelled and returned to draft. Make your changes and resubmit.';
+      msg.textContent = 'Submission returned to draft. Make your changes and resubmit.';
       msg.className = 'flash ok';
       msg.style.display = 'flex';
     }, 300);
@@ -2972,12 +2892,7 @@ async function cancelAndEditReimb(id){
       if(desc) desc.value = item.description||'';
       if(cost) cost.value = item.cost||'';
       if(acct) acct.value = item.account||'';
-      if(cls){
-        // Check if class code matches a known class
-        var match = allClasses.find(function(c){return c.code===item.class_code;});
-        if(match) cls.value = item.class_code;
-        else if(item.class_code){cls.value='other';toggleOtherClass(n);var o=document.getElementById('rclsother-'+n);if(o)o.value=item.class_code;}
-      }
+      if(cls) cls.value = item.class_code||'';
     });
     updateReimbTotal();
     // Restore receipt previews
@@ -2993,6 +2908,23 @@ async function cancelAndEditReimb(id){
         var type = ['jpg','jpeg','png','gif','webp','heic'].indexOf(ext)>=0 ? 'image/'+ext : 'application/octet-stream';
         addReceiptPreview(preview, url, path, path.split('/').pop(), type);
       });
+    }
+    // Restore signature
+    if(s.employee_signature){
+      var sigDateR = document.getElementById('sig-reimb-date');
+      if(sigDateR && s.employee_sig_date) sigDateR.value = s.employee_sig_date;
+      var imgR = new Image();
+      imgR.onload = function(){
+        var c = document.getElementById('sig-reimb');
+        if(c){
+          var ctx = c.getContext('2d');
+          var dpr = window.devicePixelRatio||1;
+          ctx.clearRect(0,0,c.width,c.height);
+          ctx.drawImage(imgR,0,0,c.width/dpr,c.height/dpr);
+          sigStore['sig-reimb'] = s.employee_signature;
+        }
+      };
+      imgR.src = s.employee_signature;
     }
     var msg = document.getElementById('reimb-msg');
     msg.textContent = 'Reimbursement returned to draft. Make your changes and resubmit.';
@@ -3332,6 +3264,106 @@ function downloadReimbPDF(){
     buildReimbPrintHTML(fakeSub)+
     '</body></html>');
   win.document.close();
+}
+
+// --- STAFF DASHBOARD ---
+var sdYear = new Date().getFullYear();
+var sdMonth = new Date().getMonth();
+
+async function initStaffDashboard(){
+  var today = new Date().toISOString().slice(0,10);
+  var currentPP = PP.find(function(p){return today>=p.s&&today<=p.e;});
+  if(currentPP){
+    document.getElementById('sd-period').textContent = currentPP.l;
+    document.getElementById('sd-due').textContent = currentPP.due;
+    document.getElementById('sd-pay').textContent = currentPP.pay;
+    // Check submission status for current period
+    if(currentUser){
+      var r = await sb.from('submissions').select('status').eq('user_id',currentUser.id).eq('period',currentPP.l).limit(1);
+      var banner = document.getElementById('sd-status-banner');
+      if(r.data&&r.data.length){
+        var status = r.data[0].status;
+        banner.style.display='block';
+        if(status==='approved'){
+          banner.style.background='#EFF5EF';banner.style.color='#2A5F2A';banner.style.border='1px solid #B8D4B8';
+          banner.textContent='✓ Your timesheet for '+currentPP.l+' has been approved!';
+        } else if(status==='rejected'){
+          banner.style.background='#fdf0f0';banner.style.color='#8B2020';banner.style.border='1px solid #f5c6c6';
+          banner.textContent='✗ Your timesheet for '+currentPP.l+' was rejected. Go to My History to edit and resubmit.';
+        } else {
+          banner.style.background='#fdf8ef';banner.style.color='#7A4A08';banner.style.border='1px solid #f5dfa0';
+          banner.textContent='⏳ Your timesheet for '+currentPP.l+' is pending approval.';
+        }
+      } else {
+        banner.style.display='block';
+        banner.style.background='#fdf8ef';banner.style.color='#7A4A08';banner.style.border='1px solid #f5dfa0';
+        banner.textContent='⚠ You have not yet submitted your timesheet for '+currentPP.l+'. Due: '+currentPP.due;
+      }
+    }
+  }
+  renderStaffCal();
+}
+
+function renderStaffCal(){
+  var label = document.getElementById('sd-month-label');
+  var cal = document.getElementById('sd-cal');
+  if(!label||!cal) return;
+  var months=['January','February','March','April','May','June','July','August','September','October','November','December'];
+  label.textContent = months[sdMonth]+' '+sdYear;
+  var firstDay = new Date(sdYear,sdMonth,1).getDay();
+  var daysInMonth = new Date(sdYear,sdMonth+1,0).getDate();
+  var today = new Date().toISOString().slice(0,10);
+  // Build lookup of due/pay dates
+  var dueDates={}, payDates={};
+  PP.forEach(function(p){
+    var d=new Date(p.due); if(d.getFullYear()===sdYear&&d.getMonth()===sdMonth) dueDates[d.getDate()]=p.l;
+    var py=new Date(p.s+'T12:00:00'); 
+    // find pay date
+    var payParts=p.pay.split(' ');
+    var payMonths={Jan:0,Feb:1,Mar:2,Apr:3,May:4,Jun:5,Jul:6,Aug:7,Sep:8,Oct:9,Nov:10,Dec:11};
+    var payM=payMonths[payParts[0]];
+    var payD=parseInt(payParts[1]);
+    var payYear=sdYear;
+    if(payM!==undefined&&payD){
+      if(payM<sdMonth) payYear=sdYear+1;
+      var payDate=new Date(payYear,payM,payD);
+      if(payDate.getFullYear()===sdYear&&payDate.getMonth()===sdMonth) payDates[payD]=p.l;
+    }
+  });
+  var html='<table style="width:100%;border-collapse:collapse;font-size:12px;">';
+  html+='<thead><tr>';
+  ['Su','Mo','Tu','We','Th','Fr','Sa'].forEach(function(d){
+    html+='<th style="padding:6px;text-align:center;font-size:10px;color:var(--t3);font-weight:600;">'+d+'</th>';
+  });
+  html+='</tr></thead><tbody><tr>';
+  for(var i=0;i<firstDay;i++) html+='<td style="padding:6px;"></td>';
+  var col=firstDay;
+  for(var d=1;d<=daysInMonth;d++){
+    var dateStr=sdYear+'-'+(sdMonth<9?'0':'')+(sdMonth+1)+'-'+(d<10?'0':'')+d;
+    var isDue=!!dueDates[d], isPay=!!payDates[d], isToday=dateStr===today;
+    var bg=isDue?'#F5A623':isPay?'#2A5F2A':'';
+    var color=isDue||isPay?'#fff':'';
+    var border=isToday?'2px solid var(--accent)':'1px solid transparent';
+    html+='<td style="padding:4px;text-align:center;">';
+    html+='<div style="width:28px;height:28px;border-radius:50%;background:'+bg+';color:'+color+';display:flex;align-items:center;justify-content:center;margin:auto;border:'+border+';font-weight:'+(isToday?'700':'400')+';">'+d+'</div>';
+    if(isDue) html+='<div style="font-size:8px;color:#F5A623;margin-top:1px;">Due</div>';
+    if(isPay) html+='<div style="font-size:8px;color:#2A5F2A;margin-top:1px;">Pay</div>';
+    html+='</td>';
+    col++;
+    if(col%7===0&&d<daysInMonth) html+='</tr><tr>';
+  }
+  while(col%7!==0){html+='<td></td>';col++;}
+  html+='</tr></tbody></table>';
+  cal.innerHTML=html;
+}
+
+function staffDashPrev(){
+  sdMonth--;if(sdMonth<0){sdMonth=11;sdYear--;}
+  renderStaffCal();
+}
+function staffDashNext(){
+  sdMonth++;if(sdMonth>11){sdMonth=0;sdYear++;}
+  renderStaffCal();
 }
 
 // --- NEST UNDER HELPERS ---
