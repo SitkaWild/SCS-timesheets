@@ -219,34 +219,9 @@ input[type=number]{width:80px;text-align:right;}
     <!-- STAFF DASHBOARD -->
     <div id="panel-staff-dashboard" class="panel">
       <div class="section-head"><h2>My Dashboard</h2></div>
-      <div id="staff-dash-content">
-        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:1rem;margin-bottom:1.5rem;">
-          <div class="card" style="text-align:center;">
-            <div style="font-size:11px;font-weight:600;text-transform:uppercase;color:var(--t3);margin-bottom:6px;">Current period</div>
-            <div id="sd-period" style="font-size:15px;font-weight:700;">--</div>
-          </div>
-          <div class="card" style="text-align:center;">
-            <div style="font-size:11px;font-weight:600;text-transform:uppercase;color:var(--t3);margin-bottom:6px;">Timesheet due</div>
-            <div id="sd-due" style="font-size:15px;font-weight:700;color:var(--amber);">--</div>
-          </div>
-          <div class="card" style="text-align:center;">
-            <div style="font-size:11px;font-weight:600;text-transform:uppercase;color:var(--t3);margin-bottom:6px;">Pay day</div>
-            <div id="sd-pay" style="font-size:15px;font-weight:700;color:var(--accent);">--</div>
-          </div>
-        </div>
-        <div id="sd-status-banner" style="display:none;padding:14px 18px;border-radius:var(--r);margin-bottom:1.5rem;font-size:18px;font-weight:700;"></div>
-        <div class="card" style="padding:0 0 1rem;">
-          <div style="display:flex;align-items:center;justify-content:space-between;padding:1rem 1rem .5rem;">
-            <button onclick="staffDashPrev()" style="background:none;border:none;cursor:pointer;font-size:24px;color:var(--t2);">&#8249;</button>
-            <div id="sd-month-label" style="font-size:15px;font-weight:600;"></div>
-            <button onclick="staffDashNext()" style="background:none;border:none;cursor:pointer;font-size:24px;color:var(--t2);">&#8250;</button>
-          </div>
-          <div id="sd-cal"></div>
-        </div>
-        <div style="display:flex;gap:1rem;font-size:12px;padding:0 1rem;margin-top:.5rem;">
-          <span style="display:flex;align-items:center;gap:6px;"><span style="width:12px;height:12px;background:#F5A623;border-radius:50%;display:inline-block;"></span>Due date</span>
-          <span style="display:flex;align-items:center;gap:6px;"><span style="width:12px;height:12px;background:#2A5F2A;border-radius:50%;display:inline-block;"></span>Pay day</span>
-        </div>
+      <div id="sd-status-banner" style="display:none;padding:14px 18px;border-radius:var(--r);margin-bottom:1.5rem;font-size:18px;font-weight:700;"></div>
+      <div class="card">
+        <div id="staff-dashboard-calendar"></div>
       </div>
     </div>
 
@@ -3302,100 +3277,94 @@ function downloadReimbPDF(){
 }
 
 // --- STAFF DASHBOARD ---
-var sdYear = new Date().getFullYear();
-var sdMonth = new Date().getMonth();
-
 async function initStaffDashboard(){
+  // Show status banner for current period
   var today = new Date().toISOString().slice(0,10);
   var currentPP = PP.find(function(p){return today>=p.s&&today<=p.e;});
-  if(currentPP){
-    document.getElementById('sd-period').textContent = currentPP.l;
-    document.getElementById('sd-due').textContent = currentPP.due;
-    document.getElementById('sd-pay').textContent = currentPP.pay;
-    // Check submission status for current period
-    if(currentUser){
-      var r = await sb.from('submissions').select('status').eq('user_id',currentUser.id).eq('period',currentPP.l).limit(1);
-      var banner = document.getElementById('sd-status-banner');
-      if(r.data&&r.data.length){
-        var status = r.data[0].status;
-        banner.style.display='block';
-        if(status==='approved'){
-          banner.style.background='#EFF5EF';banner.style.color='#2A5F2A';banner.style.border='1px solid #B8D4B8';
-          banner.textContent='✓ Your timesheet for '+currentPP.l+' has been approved!';
-        } else if(status==='rejected'){
-          banner.style.background='#fdf0f0';banner.style.color='#8B2020';banner.style.border='1px solid #f5c6c6';
-          banner.textContent='✗ Your timesheet for '+currentPP.l+' was rejected. Go to My History to edit and resubmit.';
-        } else {
-          banner.style.background='#fdf8ef';banner.style.color='#7A4A08';banner.style.border='1px solid #f5dfa0';
-          banner.textContent='⏳ Your timesheet for '+currentPP.l+' is pending approval.';
-        }
+  var banner = document.getElementById('sd-status-banner');
+  if(currentPP && currentUser && banner){
+    var r = await sb.from('submissions').select('status').eq('user_id',currentUser.id).eq('period',currentPP.l).limit(1);
+    banner.style.display='block';
+    if(r.data&&r.data.length){
+      var status = r.data[0].status;
+      if(status==='approved'){
+        banner.style.background='#EFF5EF';banner.style.color='#2A5F2A';banner.style.border='1px solid #B8D4B8';
+        banner.textContent='✓ Your timesheet for '+currentPP.l+' has been approved!';
+      } else if(status==='rejected'){
+        banner.style.background='#fdf0f0';banner.style.color='#8B2020';banner.style.border='1px solid #f5c6c6';
+        banner.textContent='✗ Your timesheet for '+currentPP.l+' was rejected — go to My History to edit and resubmit.';
       } else {
-        banner.style.display='block';
         banner.style.background='#fdf8ef';banner.style.color='#7A4A08';banner.style.border='1px solid #f5dfa0';
-        banner.textContent='⚠ You have not yet submitted your timesheet for '+currentPP.l+'. Due: '+currentPP.due;
+        banner.textContent='⏳ Your timesheet for '+currentPP.l+' is pending approval.';
       }
+    } else {
+      banner.style.background='#fdf8ef';banner.style.color='#7A4A08';banner.style.border='1px solid #f5dfa0';
+      banner.textContent='⚠ You have not yet submitted your timesheet for '+currentPP.l+'. Due: '+currentPP.due;
     }
   }
-  renderStaffCal();
+  // Render the same calendar as admin
+  renderStaffCalendar();
 }
 
-function renderStaffCal(){
-  var label = document.getElementById('sd-month-label');
-  var cal = document.getElementById('sd-cal');
-  if(!label||!cal) return;
-  var months=['January','February','March','April','May','June','July','August','September','October','November','December'];
-  label.textContent = months[sdMonth]+' '+sdYear;
-  var firstDay = new Date(sdYear,sdMonth,1).getDay();
-  var daysInMonth = new Date(sdYear,sdMonth+1,0).getDate();
-  var today = new Date().toISOString().slice(0,10);
-  // Build lookup of due/pay dates
+function renderStaffCalendar(year, month){
+  var cal = document.getElementById('staff-dashboard-calendar');
+  if(!cal) return;
+  var now = new Date();
+  if(year===undefined) year = now.getFullYear();
+  if(month===undefined) month = now.getMonth();
+  var monthNames = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+  var dayNames = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+  var todayD = now.getDate(), todayM = now.getMonth(), todayY = now.getFullYear();
+  var firstDay = new Date(year,month,1).getDay();
+  var daysInMonth = new Date(year,month+1,0).getDate();
   var dueDates={}, payDates={};
   PP.forEach(function(p){
-    var d=new Date(p.due); if(d.getFullYear()===sdYear&&d.getMonth()===sdMonth) dueDates[d.getDate()]=p.l;
-    var py=new Date(p.s+'T12:00:00'); 
-    // find pay date
-    var payParts=p.pay.split(' ');
-    var payMonths={Jan:0,Feb:1,Mar:2,Apr:3,May:4,Jun:5,Jul:6,Aug:7,Sep:8,Oct:9,Nov:10,Dec:11};
-    var payM=payMonths[payParts[0]];
-    var payD=parseInt(payParts[1]);
-    var payYear=sdYear;
-    if(payM!==undefined&&payD){
-      if(payM<sdMonth) payYear=sdYear+1;
-      var payDate=new Date(payYear,payM,payD);
-      if(payDate.getFullYear()===sdYear&&payDate.getMonth()===sdMonth) payDates[payD]=p.l;
-    }
+    var endDate=new Date(p.e);
+    var endYear=endDate.getFullYear();
+    [endYear,endYear+1].forEach(function(tryYear){
+      var dueD=new Date(p.due+', '+tryYear);
+      if(!isNaN(dueD.getTime())&&dueD>=endDate&&dueD.getMonth()===month&&dueD.getFullYear()===year) dueDates[dueD.getDate()]=p;
+      var payD=new Date(p.pay+', '+tryYear);
+      if(!isNaN(payD.getTime())&&payD>=endDate&&payD.getMonth()===month&&payD.getFullYear()===year) payDates[payD.getDate()]=p;
+    });
   });
-  var html='<table style="width:100%;border-collapse:collapse;font-size:12px;">';
-  html+='<thead><tr>';
-  ['Su','Mo','Tu','We','Th','Fr','Sa'].forEach(function(d){
-    html+='<th style="padding:6px;text-align:center;font-size:10px;color:var(--t3);font-weight:600;">'+d+'</th>';
-  });
-  html+='</tr></thead><tbody><tr>';
-  for(var i=0;i<firstDay;i++) html+='<td style="padding:6px;"></td>';
-  var col=firstDay;
+  var todayStr=now.toISOString().slice(0,10);
+  var curPP=PP.find(function(p){return todayStr>=p.s&&todayStr<=p.e;});
+  var canPrev=!(year===2026&&month===0), canNext=!(year===2027&&month===11);
+  var prevY=month===0?year-1:year, prevM=month===0?11:month-1;
+  var nextY=month===11?year+1:year, nextM=month===11?0:month+1;
+  var html='<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem;">';
+  html+='<button onclick="renderStaffCalendar('+prevY+','+prevM+')" '+(canPrev?'':'disabled style="opacity:.3;cursor:default;"')+' style="background:none;border:1px solid var(--border);border-radius:var(--r);padding:4px 12px;cursor:pointer;font-size:16px;color:var(--t2);">&lt;</button>';
+  html+='<div style="font-size:18px;font-weight:600;">'+monthNames[month]+' '+year+'</div>';
+  html+='<button onclick="renderStaffCalendar('+nextY+','+nextM+')" '+(canNext?'':'disabled style="opacity:.3;cursor:default;"')+' style="background:none;border:1px solid var(--border);border-radius:var(--r);padding:4px 12px;cursor:pointer;font-size:16px;color:var(--t2);">&gt;</button>';
+  html+='</div>';
+  html+='<div style="display:grid;grid-template-columns:repeat(7,1fr);gap:4px;text-align:center;">';
+  dayNames.forEach(function(d){html+='<div style="font-size:10px;font-weight:600;text-transform:uppercase;color:var(--t3);padding:4px 0;">'+d+'</div>';});
+  for(var i=0;i<firstDay;i++) html+='<div></div>';
   for(var d=1;d<=daysInMonth;d++){
-    var dateStr=sdYear+'-'+(sdMonth<9?'0':'')+(sdMonth+1)+'-'+(d<10?'0':'')+d;
-    var isDue=!!dueDates[d], isPay=!!payDates[d], isToday=dateStr===today;
-    var bg=isDue?'#F5A623':isPay?'#2A5F2A':'';
-    var color=isDue||isPay?'#fff':'';
-    var border=isToday?'2px solid var(--accent)':'1px solid transparent';
-    html+='<td style="padding:4px;text-align:center;">';
-    html+='<div style="width:28px;height:28px;border-radius:50%;background:'+bg+';color:'+color+';display:flex;align-items:center;justify-content:center;margin:auto;border:'+border+';font-weight:'+(isToday?'700':'400')+';">'+d+'</div>';
-    if(isDue) html+='<div style="font-size:8px;color:#F5A623;margin-top:1px;">Due</div>';
-    if(isPay) html+='<div style="font-size:8px;color:#2A5F2A;margin-top:1px;">Pay</div>';
-    html+='</td>';
-    col++;
-    if(col%7===0&&d<daysInMonth) html+='</tr><tr>';
+    var isToday=d===todayD&&month===todayM&&year===todayY;
+    var isDue=dueDates[d], isPay=payDates[d];
+    var bg='',label='',titleAttr='';
+    if(isToday){bg='background:var(--accent);color:#fff;';}
+    else if(isDue){bg='background:var(--amber-lt);color:var(--amber);';label='<div style="font-size:8px;font-weight:700;margin-top:1px;">DUE</div>';titleAttr='title="Timesheet due"';}
+    else if(isPay){bg='background:var(--green-lt);color:var(--green);';label='<div style="font-size:8px;font-weight:700;margin-top:1px;">PAY</div>';titleAttr='title="Pay day"';}
+    html+='<div '+titleAttr+' style="padding:6px 2px;border-radius:6px;font-size:13px;cursor:default;'+bg+'">'+d+label+'</div>';
   }
-  while(col%7!==0){html+='<td></td>';col++;}
-  html+='</tr></tbody></table>';
+  html+='</div>';
+  html+='<div style="display:flex;gap:16px;margin-top:12px;font-size:12px;flex-wrap:wrap;">';
+  html+='<div style="display:flex;align-items:center;gap:5px;"><div style="width:12px;height:12px;border-radius:3px;background:var(--amber-lt);border:1px solid var(--amber);"></div><span style="color:var(--t2);">Due date</span></div>';
+  html+='<div style="display:flex;align-items:center;gap:5px;"><div style="width:12px;height:12px;border-radius:3px;background:var(--green-lt);border:1px solid var(--green);"></div><span style="color:var(--t2);">Pay day</span></div>';
+  html+='<div style="display:flex;align-items:center;gap:5px;"><div style="width:12px;height:12px;border-radius:3px;background:var(--accent);"></div><span style="color:var(--t2);">Today</span></div>';
+  html+='</div>';
+  if(curPP){
+    html+='<div style="margin-top:1rem;padding:10px 14px;background:var(--accent-lt);border-radius:var(--r);font-size:13px;color:var(--t2);">'+
+      'Current period: <strong style="color:var(--text);">'+curPP.l+'</strong> &nbsp;|&nbsp; '+
+      'Due: <strong style="color:var(--amber);">'+curPP.due+'</strong> &nbsp;|&nbsp; '+
+      'Pay day: <strong style="color:var(--green);">'+curPP.pay+'</strong></div>';
+  }
   cal.innerHTML=html;
 }
 
-function staffDashPrev(){
-  sdMonth--;if(sdMonth<0){sdMonth=11;sdYear--;}
-  renderStaffCal();
-}
 function staffDashNext(){
   sdMonth++;if(sdMonth>11){sdMonth=0;sdYear++;}
   renderStaffCal();
