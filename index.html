@@ -216,7 +216,41 @@ input[type=number]{width:80px;text-align:right;}
   </nav>
   <div class="app-body">
 
-    <div id="panel-timesheet" class="panel active">
+    <!-- STAFF DASHBOARD -->
+    <div id="panel-staff-dashboard" class="panel">
+      <div class="section-head"><h2>My Dashboard</h2></div>
+      <div id="staff-dash-content">
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:1rem;margin-bottom:1.5rem;">
+          <div class="card" style="text-align:center;">
+            <div style="font-size:11px;font-weight:600;text-transform:uppercase;color:var(--t3);margin-bottom:6px;">Current period</div>
+            <div id="sd-period" style="font-size:15px;font-weight:700;">--</div>
+          </div>
+          <div class="card" style="text-align:center;">
+            <div style="font-size:11px;font-weight:600;text-transform:uppercase;color:var(--t3);margin-bottom:6px;">Timesheet due</div>
+            <div id="sd-due" style="font-size:15px;font-weight:700;color:var(--amber);">--</div>
+          </div>
+          <div class="card" style="text-align:center;">
+            <div style="font-size:11px;font-weight:600;text-transform:uppercase;color:var(--t3);margin-bottom:6px;">Pay day</div>
+            <div id="sd-pay" style="font-size:15px;font-weight:700;color:var(--accent);">--</div>
+          </div>
+        </div>
+        <div id="sd-status-banner" style="display:none;padding:14px 18px;border-radius:var(--r);margin-bottom:1.5rem;font-size:18px;font-weight:700;"></div>
+        <div class="card" style="padding:0 0 1rem;">
+          <div style="display:flex;align-items:center;justify-content:space-between;padding:1rem 1rem .5rem;">
+            <button onclick="staffDashPrev()" style="background:none;border:none;cursor:pointer;font-size:24px;color:var(--t2);">&#8249;</button>
+            <div id="sd-month-label" style="font-size:15px;font-weight:600;"></div>
+            <button onclick="staffDashNext()" style="background:none;border:none;cursor:pointer;font-size:24px;color:var(--t2);">&#8250;</button>
+          </div>
+          <div id="sd-cal"></div>
+        </div>
+        <div style="display:flex;gap:1rem;font-size:12px;padding:0 1rem;margin-top:.5rem;">
+          <span style="display:flex;align-items:center;gap:6px;"><span style="width:12px;height:12px;background:#F5A623;border-radius:50%;display:inline-block;"></span>Due date</span>
+          <span style="display:flex;align-items:center;gap:6px;"><span style="width:12px;height:12px;background:#2A5F2A;border-radius:50%;display:inline-block;"></span>Pay day</span>
+        </div>
+      </div>
+    </div>
+
+        <div id="panel-timesheet" class="panel">
       <div class="section-head"><h2>New timesheet</h2></div>
       <div class="g2">
         <div><label class="fl">Employee</label><div id="ts-emp" style="font-size:15px;font-weight:600;padding:9px 0;"></div></div>
@@ -1064,8 +1098,7 @@ function buildTSGrid(){
   days.forEach(function(d,di){
     footHtml+='<td class="day-total" id="dt-'+di+'">0.0</td>';
   });
-  footHtml+='<td style="border-top:2px solid var(--border);border-left:1px solid var(--border);"></td>';
-  footHtml+='<td class="grand-total-cell" id="grand-total">0.0</td>';
+  footHtml+='<td class="grand-total-cell" id="grand-total" style="border-left:2px solid var(--border);">0.0</td>';
   footHtml+='</tr>';
   document.getElementById('ts-grid-foot').className='tsg';
   document.getElementById('ts-grid-foot').innerHTML=footHtml;
