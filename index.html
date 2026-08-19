@@ -875,8 +875,7 @@ async function enterApp(){
   if(currentUser.is_admin){
     showPanel('dashboard',document.getElementById('ntab-dashboard'));
   } else {
-    showPanel('timesheet',document.getElementById('ntab-timesheet'));
-    setTimeout(function(){initSig('sig-emp');},100);
+    showPanel('staff-dashboard',document.getElementById('ntab-staff-dashboard'));
   }
   var ed=document.getElementById('sig-emp-date');
   if(ed)ed.value=new Date().toISOString().slice(0,10);
@@ -977,7 +976,10 @@ async function updatePeriodInfo(){
       bar.style.background=sub.status==='approved'?'#EFF5EF':sub.status==='rejected'?'#fdf0f0':'#fdf8ef';
       bar.style.borderColor=statusColors[sub.status]||'var(--amber)';
       document.getElementById('warn-text').style.color=statusColors[sub.status]||'var(--amber)';
-      document.getElementById('warn-text').textContent='✓ Timesheet for '+p.l+' has been submitted — '+(statusLabels[sub.status]||sub.status);
+      var warnEl=document.getElementById('warn-text');
+      warnEl.style.fontWeight='700';
+      warnEl.style.fontSize='16px';
+      warnEl.textContent='✓ Timesheet for '+p.l+' has been submitted — '+(statusLabels[sub.status]||sub.status);
       buildTSGrid();
       return;
     }
