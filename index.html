@@ -297,6 +297,7 @@ input[type=number]{width:80px;text-align:right;}
         <div style="display:flex;gap:8px;flex-wrap:wrap;">
           <button class="btn btn-sm" onclick="toggleRefPanel()" style="color:var(--accent);border-color:var(--accent);">&#128203; Reference</button>
           <button class="btn btn-sm btn-primary" onclick="approveAllVisible()">Approve all visible</button>
+          <button class="btn btn-sm" onclick="printTSSummaryReport()">&#128438; Summary report</button>
           <button class="btn" onclick="exportAllCSV()">Export all CSV</button>
         </div>
       </div>
@@ -573,6 +574,7 @@ input[type=number]{width:80px;text-align:right;}
         <div style="display:flex;gap:8px;flex-wrap:wrap;">
           <button class="btn btn-sm" onclick="toggleRefPanel()" style="color:var(--accent);border-color:var(--accent);">&#128203; Reference</button>
           <button class="btn btn-sm btn-primary" onclick="approveAllVisibleReimb()">Approve all visible</button>
+          <button class="btn btn-sm" onclick="printReimbSummaryReport()">&#128438; Summary report</button>
           <button class="btn" onclick="exportReimbCSV()">Export CSV</button>
         </div>
       </div>
@@ -962,11 +964,20 @@ async function fetchCats(){
 function initTS(){
   document.getElementById('ts-emp').textContent=currentUser.name;
   var sel=document.getElementById('pay-period');
-  var today=new Date().toISOString().slice(0,10);
+  var today=new Date();
+  var todayStr=today.toISOString().slice(0,10);
   var best=0;
-  PP.forEach(function(p,i){if(today>=p.s&&today<=p.e)best=i;});
+  PP.forEach(function(p,i){
+    // Stay on current period until Tuesday after due date
+    // due date is Friday, Tuesday after = due + 4 days
+    var dueDate=new Date(p.due);
+    var cutoff=new Date(dueDate);
+    cutoff.setDate(cutoff.getDate()+4); // Tuesday after due Friday
+    var cutoffStr=cutoff.toISOString().slice(0,10);
+    if(todayStr>=p.s&&todayStr<=cutoffStr)best=i;
+  });
   sel.innerHTML=PP.map(function(p,i){return '<option value="'+i+'">'+p.l+'</option>';}).join('');
-  sel.value=best;updatePeriodInfo();buildTSGrid();
+  sel.value=best;updatePeriodInfo();
 }
 async function updatePeriodInfo(){
   var p=PP[+document.getElementById('pay-period').value];
@@ -1360,12 +1371,12 @@ async function renderApprovals(){
       expandGridHtml+='<table style="border-collapse:collapse;font-size:11px;width:100%;">';
       expandGridHtml+='<thead><tr>';
       expandGridHtml+='<th style="text-align:left;padding:4px 6px;border:1px solid var(--border);background:var(--bg);min-width:100px;">Class</th>';
-      expandGridHtml+='<th style="padding:4px 3px;border:1px solid var(--border);background:var(--bg);width:30px;text-align:center;">QB</th>';
       expandDays.forEach(function(d){
         var isWe=d.getDay()===0||d.getDay()===6;
         expandGridHtml+='<th style="padding:3px 2px;border:1px solid var(--border);background:'+(isWe?'#f4f4f2':'var(--bg)')+';width:26px;text-align:center;font-weight:500;">'+
           dayNamesShort[d.getDay()]+'<br/><span style="font-size:9px;font-weight:400;color:var(--t3);">'+d.getDate()+'</span></th>';
       });
+      expandGridHtml+='<th style="padding:4px 3px;border:1px solid var(--border);background:var(--bg);width:30px;text-align:center;border-left:1px solid var(--border);">QB</th>';
       expandGridHtml+='<th style="padding:4px 5px;border:1px solid var(--border);background:var(--accent-lt);width:36px;text-align:right;color:var(--accent);">Total</th>';
       expandGridHtml+='</tr></thead><tbody>';
       // Group by category
@@ -1376,7 +1387,6 @@ async function renderApprovals(){
         cats2[cat].forEach(function(e){
           expandGridHtml+='<tr>';
           expandGridHtml+='<td style="padding:3px 6px;border:1px solid var(--border-lt);">'+e.name+'</td>';
-          expandGridHtml+='<td style="padding:3px 2px;border:1px solid var(--border-lt);text-align:center;font-family:monospace;color:var(--t3);font-size:9px;">'+e.code+'</td>';
           var dayMap={};
           (e.dayHours||[]).forEach(function(dh){dayMap[dh.date]=dh.hours;});
           expandDays.forEach(function(d){
@@ -1385,6 +1395,7 @@ async function renderApprovals(){
             var isWe=d.getDay()===0||d.getDay()===6;
             expandGridHtml+='<td style="padding:3px 1px;border:1px solid var(--border-lt);text-align:center;background:'+(isWe?'#f8f8f6':'')+';'+(h>0?'font-weight:600;':'')+'">'+(h>0?h:'')+'</td>';
           });
+          expandGridHtml+='<td style="padding:3px 2px;border:1px solid var(--border);text-align:center;font-family:monospace;color:var(--t3);font-size:9px;border-left:1px solid var(--border);">'+e.code+'</td>';
           expandGridHtml+='<td style="padding:3px 5px;border:1px solid var(--border);text-align:right;font-weight:700;background:var(--accent-lt);color:var(--accent);">'+parseFloat(e.hours||0).toFixed(1)+'</td>';
           expandGridHtml+='</tr>';
         });
@@ -1400,6 +1411,7 @@ async function renderApprovals(){
         gt2+=dt;
         expandGridHtml+='<td style="padding:4px 1px;border:1px solid var(--border);text-align:center;font-weight:700;background:var(--bg);">'+(dt>0?dt.toFixed(1):'')+'</td>';
       });
+      expandGridHtml+='<td style="padding:4px 2px;border:1px solid var(--border);border-left:1px solid var(--border);"></td>';
       expandGridHtml+='<td style="padding:4px 5px;border:1px solid var(--border);text-align:right;font-weight:700;font-size:12px;background:var(--accent-lt);color:var(--accent);">'+gt2.toFixed(1)+'</td>';
       expandGridHtml+='</tr></tbody></table></div>';
     }
@@ -1475,12 +1487,12 @@ function buildTSPrintGrid(entries, period){
   // Header
   html+='<thead><tr>';
   html+='<th style="text-align:left;padding:4px 6px;border:1px solid #ccc;background:#EFF5EF;min-width:100px;">Class</th>';
-  html+='<th style="padding:4px 3px;border:1px solid #ccc;background:#EFF5EF;width:32px;">QB</th>';
   days.forEach(function(d){
     var isWe=d.getDay()===0||d.getDay()===6;
     html+='<th style="padding:3px 1px;border:1px solid #ccc;background:'+(isWe?'#f0f0ee':'#EFF5EF')+';width:28px;text-align:center;">'+
       '<div>'+dayNames[d.getDay()]+'</div><div style="font-weight:400;">'+d.getDate()+'</div></th>';
   });
+  html+='<th style="padding:4px 3px;border:1px solid #ccc;background:#EFF5EF;width:32px;border-left:2px solid #B8D4B8;">QB</th>';
   html+='<th style="padding:4px 5px;border:1px solid #ccc;background:#d8ecd8;width:36px;text-align:right;">Total</th>';
   html+='</tr></thead><tbody>';
   // Group by category
@@ -1495,7 +1507,6 @@ function buildTSPrintGrid(entries, period){
     cats[cat].forEach(function(e){
       html+='<tr>';
       html+='<td style="padding:3px 6px;border:1px solid #ddd;">'+e.name+'</td>';
-      html+='<td style="padding:3px 2px;border:1px solid #ddd;text-align:center;font-family:monospace;color:#888;font-size:9px;">'+e.code+'</td>';
       var dayMap={};
       (e.dayHours||[]).forEach(function(dh){dayMap[dh.date]=dh.hours;});
       days.forEach(function(d){
@@ -1504,13 +1515,14 @@ function buildTSPrintGrid(entries, period){
         var isWe=d.getDay()===0||d.getDay()===6;
         html+='<td style="padding:3px 1px;border:1px solid #ddd;text-align:center;background:'+(isWe?'#f8f8f6':'')+';'+(h>0?'font-weight:600;':'color:#ccc;')+'">'+(h>0?h:'')+'</td>';
       });
+      html+='<td style="padding:3px 2px;border:1px solid #ddd;text-align:center;font-family:monospace;color:#888;font-size:9px;border-left:2px solid #B8D4B8;">'+e.code+'</td>';
       html+='<td style="padding:3px 5px;border:1px solid #ccc;text-align:right;font-weight:700;background:#e8f4e8;">'+parseFloat(e.hours||0).toFixed(1)+'</td>';
       html+='</tr>';
     });
   });
   // Daily totals row
   html+='<tr style="border-top:2px solid #999;">';
-  html+='<td colspan="2" style="padding:4px 6px;font-weight:700;font-size:10px;border:1px solid #ccc;background:#f0f4f0;">Daily totals</td>';
+  html+='<td style="padding:4px 6px;font-weight:700;font-size:10px;border:1px solid #ccc;background:#f0f4f0;">Daily totals</td>';
   var grandTotal=0;
   days.forEach(function(d){
     var dateStr=d.toISOString().slice(0,10);
@@ -1521,6 +1533,7 @@ function buildTSPrintGrid(entries, period){
     grandTotal+=dayTotal;
     html+='<td style="padding:4px 1px;border:1px solid #ccc;text-align:center;font-weight:700;background:#f0f4f0;">'+(dayTotal>0?dayTotal.toFixed(1):'')+'</td>';
   });
+  html+='<td style="padding:4px 3px;border:1px solid #ccc;border-left:2px solid #B8D4B8;"></td>';
   html+='<td style="padding:4px 5px;border:1px solid #ccc;text-align:right;font-weight:700;font-size:12px;background:#d8ecd8;">'+grandTotal.toFixed(1)+'</td>';
   html+='</tr></tbody></table>';
   return html;
@@ -3446,6 +3459,202 @@ function getSortOrderAfterParent(parentCode, allData, codeNum){
     lastChildOrder = a.sort_order;
   }
   return lastChildOrder + 0.5; // insert after last child
+}
+
+// --- SUMMARY REPORTS ---
+function printTSSummaryReport(){
+  var period = document.getElementById('f-period');
+  var periodLabel = period && period.value ? period.value : 'All periods';
+  var data = approvalData;
+  if(!data.length){alert('No timesheets to report on.');return;}
+  var grandTotal = 0;
+  var rows = data.map(function(s){
+    var hrs = parseFloat(s.total_hours)||0;
+    grandTotal += hrs;
+    return '<tr>'+
+      '<td style="padding:6px 10px;border-bottom:1px solid #eee;">'+s.staff_name+'</td>'+
+      '<td style="padding:6px 10px;border-bottom:1px solid #eee;">'+s.period+'</td>'+
+      '<td style="padding:6px 10px;border-bottom:1px solid #eee;text-align:center;">'+
+        '<span style="padding:2px 8px;border-radius:10px;font-size:11px;font-weight:600;background:'+(s.status==='approved'?'#EFF5EF':s.status==='rejected'?'#fdf0f0':'#fdf8ef')+';color:'+(s.status==='approved'?'#2A5F2A':s.status==='rejected'?'#8B2020':'#7A4A08')+';">'+s.status+'</span>'+
+      '</td>'+
+      '<td style="padding:6px 10px;border-bottom:1px solid #eee;text-align:right;font-weight:600;">'+hrs.toFixed(1)+' hrs</td>'+
+    '</tr>';
+  }).join('');
+  var win = window.open('','_blank');
+  if(!win){alert('Please allow popups.');return;}
+  win.document.write('<!DOCTYPE html><html><head><meta charset="UTF-8"/><title>Timesheet Summary Report</title>'+
+    '<style>body{font-family:Arial,sans-serif;font-size:13px;padding:2rem;max-width:700px;margin:0 auto;}'+
+    'table{width:100%;border-collapse:collapse;}'+
+    'th{font-size:10px;text-transform:uppercase;color:#666;text-align:left;padding:6px 10px;border-bottom:2px solid #B8D4B8;background:#EFF5EF;}'+
+    'th.r{text-align:right;}'+
+    '@media print{.noprint{display:none;}}</style></head><body>'+
+    '<div class="noprint" style="margin-bottom:1rem;display:flex;gap:10px;">'+
+      '<button onclick="window.print()" style="padding:8px 16px;background:#2A5F2A;color:#fff;border:none;border-radius:6px;cursor:pointer;">Print / Save PDF</button>'+
+      '<button onclick="window.close()" style="padding:8px 16px;border:1px solid #ccc;border-radius:6px;cursor:pointer;background:none;">Close</button>'+
+    '</div>'+
+    '<h2 style="margin-bottom:4px;">Sitka Conservation Society</h2>'+
+    '<div style="font-size:12px;color:#666;margin-bottom:4px;">Timesheet Summary Report</div>'+
+    '<div style="font-size:12px;color:#666;margin-bottom:1.5rem;">Period: <strong>'+periodLabel+'</strong> &nbsp;|&nbsp; Generated: <strong>'+new Date().toLocaleDateString()+'</strong></div>'+
+    '<table><thead><tr>'+
+      '<th>Staff member</th><th>Pay period</th><th>Status</th><th class="r">Hours</th>'+
+    '</tr></thead><tbody>'+rows+'</tbody>'+
+    '<tfoot><tr>'+
+      '<td colspan="3" style="padding:10px;font-weight:700;text-align:right;border-top:2px solid #B8D4B8;font-size:14px;">Grand total</td>'+
+      '<td style="padding:10px;font-weight:700;text-align:right;border-top:2px solid #B8D4B8;font-size:16px;color:#2A5F2A;">'+grandTotal.toFixed(1)+' hrs</td>'+
+    '</tr></tfoot></table>'+
+    '</body></html>');
+  win.document.close();
+}
+
+function printReimbSummaryReport(){
+  var period = document.getElementById('rf-period');
+  var periodLabel = period && period.value ? period.value : 'All periods';
+  var data = reimbApprovalData;
+  if(!data.length){alert('No reimbursements to report on.');return;}
+  var grandTotal = 0;
+  var rows = data.map(function(s){
+    var amt = parseFloat(s.total)||0;
+    grandTotal += amt;
+    return '<tr>'+
+      '<td style="padding:6px 10px;border-bottom:1px solid #eee;">'+s.staff_name+'</td>'+
+      '<td style="padding:6px 10px;border-bottom:1px solid #eee;">'+s.period+'</td>'+
+      '<td style="padding:6px 10px;border-bottom:1px solid #eee;">'+((s.items||[]).length)+' items</td>'+
+      '<td style="padding:6px 10px;border-bottom:1px solid #eee;text-align:center;">'+
+        '<span style="padding:2px 8px;border-radius:10px;font-size:11px;font-weight:600;background:'+(s.status==='approved'?'#EFF5EF':s.status==='rejected'?'#fdf0f0':'#fdf8ef')+';color:'+(s.status==='approved'?'#2A5F2A':s.status==='rejected'?'#8B2020':'#7A4A08')+';">'+s.status+'</span>'+
+      '</td>'+
+      '<td style="padding:6px 10px;border-bottom:1px solid #eee;text-align:right;font-weight:600;">$'+amt.toFixed(2)+'</td>'+
+    '</tr>';
+  }).join('');
+  var win = window.open('','_blank');
+  if(!win){alert('Please allow popups.');return;}
+  win.document.write('<!DOCTYPE html><html><head><meta charset="UTF-8"/><title>Reimbursement Summary Report</title>'+
+    '<style>body{font-family:Arial,sans-serif;font-size:13px;padding:2rem;max-width:750px;margin:0 auto;}'+
+    'table{width:100%;border-collapse:collapse;}'+
+    'th{font-size:10px;text-transform:uppercase;color:#666;text-align:left;padding:6px 10px;border-bottom:2px solid #B8D4B8;background:#EFF5EF;}'+
+    'th.r{text-align:right;}'+
+    '@media print{.noprint{display:none;}}</style></head><body>'+
+    '<div class="noprint" style="margin-bottom:1rem;display:flex;gap:10px;">'+
+      '<button onclick="window.print()" style="padding:8px 16px;background:#2A5F2A;color:#fff;border:none;border-radius:6px;cursor:pointer;">Print / Save PDF</button>'+
+      '<button onclick="window.close()" style="padding:8px 16px;border:1px solid #ccc;border-radius:6px;cursor:pointer;background:none;">Close</button>'+
+    '</div>'+
+    '<h2 style="margin-bottom:4px;">Sitka Conservation Society</h2>'+
+    '<div style="font-size:12px;color:#666;margin-bottom:4px;">Reimbursement Summary Report</div>'+
+    '<div style="font-size:12px;color:#666;margin-bottom:1.5rem;">Period: <strong>'+periodLabel+'</strong> &nbsp;|&nbsp; Generated: <strong>'+new Date().toLocaleDateString()+'</strong></div>'+
+    '<table><thead><tr>'+
+      '<th>Staff member</th><th>Pay period</th><th>Items</th><th>Status</th><th class="r">Amount</th>'+
+    '</tr></thead><tbody>'+rows+'</tbody>'+
+    '<tfoot><tr>'+
+      '<td colspan="4" style="padding:10px;font-weight:700;text-align:right;border-top:2px solid #B8D4B8;font-size:14px;">Grand total</td>'+
+      '<td style="padding:10px;font-weight:700;text-align:right;border-top:2px solid #B8D4B8;font-size:16px;color:#2A5F2A;">$'+grandTotal.toFixed(2)+'</td>'+
+    '</tr></tfoot></table>'+
+    '</body></html>');
+  win.document.close();
+}
+
+// --- STAFF MANAGEMENT ---
+async function renderUsers(){
+  var list = document.getElementById('user-list');
+  if(!list) return;
+  var r = await sb.from('users').select('*').order('name');
+  if(r.error){list.innerHTML='<div class="empty" style="color:var(--red);">Error loading staff: '+r.error.message+'</div>';return;}
+  allUsers = r.data||[];
+  if(!allUsers.length){list.innerHTML='<div class="empty">No staff yet — add one above.</div>';return;}
+  list.innerHTML = '';
+  allUsers.forEach(function(u){
+    var row = document.createElement('div');
+    row.className = 'ur';
+    row.id = 'urow-'+u.id;
+    row.innerHTML =
+      '<span style="font-weight:'+(u.is_admin?'600':'400')+';">'+u.name+'</span>'+
+      '<span style="font-size:12px;color:var(--t2);">'+(u.email||'--')+'</span>'+
+      '<span style="font-size:11px;color:'+(u.is_admin?'var(--accent)':'var(--t3)')+';">'+(u.is_admin?'Admin':'Staff')+'</span>'+
+      '<div class="dot-menu">'+
+        '<button class="dot-btn" onclick="toggleDotMenu(&quot;dm-&quot;+this.dataset.uid)" data-uid="'+u.id+'">&#8942;</button>'+
+        '<div class="dot-drop" id="dm-'+u.id+'">'+
+          '<div class="dot-item" onclick="editUserName(this)" data-uid="'+u.id+'" data-name="'+u.name.replace(/"/g,'&quot;')+'">Rename</div>'+
+          '<div class="dot-item" onclick="editUserEmail(this)" data-uid="'+u.id+'" data-email="'+(u.email||'').replace(/"/g,'&quot;')+'">Edit email</div>'+
+          '<div class="dot-item" onclick="resetUserPin(this)" data-uid="'+u.id+'" data-name="'+u.name.replace(/"/g,'&quot;')+'">Reset PIN</div>'+
+          '<div class="dot-item" onclick="toggleAdmin(this)" data-uid="'+u.id+'" data-admin="'+(u.is_admin?'1':'0')+'">Make '+(u.is_admin?'staff':'admin')+'</div>'+
+          '<div class="dot-item" style="color:var(--red);" onclick="deleteUser(this)" data-uid="'+u.id+'" data-name="'+u.name.replace(/"/g,'&quot;')+'">Remove</div>'+
+        '</div>'+
+      '</div>';
+    list.appendChild(row);
+  });
+}
+
+function toggleDotMenu(id){
+  document.querySelectorAll('.dot-drop').forEach(function(d){
+    if(d.id!==id) d.classList.remove('open');
+  });
+  var el = document.getElementById(id);
+  if(el) el.classList.toggle('open');
+}
+document.addEventListener('click',function(e){
+  if(!e.target.closest('.dot-menu')) document.querySelectorAll('.dot-drop').forEach(function(d){d.classList.remove('open');});
+});
+
+async function addEmployee(){
+  var name = document.getElementById('ne-name').value.trim();
+  var pin = document.getElementById('ne-pin').value.trim();
+  var email = document.getElementById('ne-email').value.trim();
+  var isAdmin = document.getElementById('ne-admin').checked;
+  var msg = document.getElementById('user-msg');
+  if(!name||!pin){flash(msg,'Name and PIN required.','err');return;}
+  if(pin.length!==4||!/^\d{4}$/.test(pin)){flash(msg,'PIN must be exactly 4 digits.','err');return;}
+  var r = await sb.from('users').insert({name:name,pin:pin,email:email||null,is_admin:isAdmin,force_pin_change:true});
+  if(r.error){flash(msg,r.error.message,'err');return;}
+  document.getElementById('ne-name').value='';
+  document.getElementById('ne-pin').value='';
+  document.getElementById('ne-email').value='';
+  document.getElementById('ne-admin').checked=false;
+  flash(msg,name+' added. They will be prompted to set their PIN on first login.','ok');
+  renderUsers();
+}
+
+async function editUserName(el){
+  var id=el.dataset.uid, current=el.dataset.name;
+  var val = prompt('New name for '+current+':', current);
+  if(!val||!val.trim()||val.trim()===current) return;
+  var r = await sb.from('users').update({name:val.trim()}).eq('id',id);
+  if(r.error){alert(r.error.message);return;}
+  renderUsers();
+}
+
+async function editUserEmail(el){
+  var id=el.dataset.uid, current=el.dataset.email||'';
+  var val = prompt('Email address:', current);
+  if(val===null) return;
+  var r = await sb.from('users').update({email:val.trim()||null}).eq('id',id);
+  if(r.error){alert(r.error.message);return;}
+  renderUsers();
+}
+
+async function resetUserPin(el){
+  var id=el.dataset.uid, name=el.dataset.name;
+  var pin = prompt('Enter new 4-digit PIN for '+name+':');
+  if(!pin) return;
+  if(!/^\d{4}$/.test(pin)){alert('PIN must be exactly 4 digits.');return;}
+  var r = await sb.from('users').update({pin:pin,force_pin_change:true}).eq('id',id);
+  if(r.error){alert(r.error.message);return;}
+  flash(document.getElementById('user-msg'),'PIN reset. '+name+' will be prompted to change it on next login.','ok');
+  renderUsers();
+}
+
+async function toggleAdmin(el){
+  var id=el.dataset.uid, currentlyAdmin=el.dataset.admin==='1';
+  var action = currentlyAdmin ? 'Remove admin access from' : 'Grant admin access to';
+  var r = await sb.from('users').select('name').eq('id',id).single();
+  var name = r.data ? r.data.name : 'this user';
+  if(!confirm(action+' '+name+'?')) return;
+  await sb.from('users').update({is_admin:!currentlyAdmin}).eq('id',id);
+  renderUsers();
+}
+
+async function deleteUser(el){
+  var id=el.dataset.uid, name=el.dataset.name;
+  if(!confirm('Remove '+name+' from the system? This cannot be undone.')) return;
+  await sb.from('users').delete().eq('id',id);
+  renderUsers();
 }
 
 // --- APPROVE ALL ---
