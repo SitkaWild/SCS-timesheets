@@ -4477,13 +4477,13 @@ boot();
 }
 #hw-ghost.peek{top:48px;}
 
-/* Cat - peeks up from bottom right of active panel */
+/* Cat - peeks from top-left of active panel */
 .hw-cat-wrap{
-  position:fixed;bottom:-72px;right:40px;
+  position:fixed;top:48px;left:-72px;
   z-index:9997;pointer-events:none;
-  transition:bottom 0.8s cubic-bezier(.4,0,.2,1);
+  transition:left 0.8s cubic-bezier(.4,0,.2,1);
 }
-.hw-cat-wrap.peek{bottom:0px;}
+.hw-cat-wrap.peek{left:0px;}
 </style>
 
 <!-- Ghost SVG - linocut style, black outline on page bg -->
@@ -4509,35 +4509,28 @@ boot();
 <!-- Cat SVGs - injected into calendar cards dynamically -->
 <template id="hw-cat-tpl">
   <div class="hw-cat-wrap">
-    <svg width="56" height="68" viewBox="0 0 56 68" fill="none" xmlns="http://www.w3.org/2000/svg">
-      <!-- Tail curling up behind -->
-      <path d="M44 60 Q52 40 46 28 Q42 20 46 14" stroke="#1a1a1a" stroke-width="2.5" fill="none" stroke-linecap="round"/>
-      <!-- Body -->
-      <ellipse cx="24" cy="50" rx="18" ry="14" fill="#1a1a1a"/>
+    <svg width="64" height="64" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg" opacity="0.7">
+      <!-- Ears -->
+      <polygon points="10,28 6,10 22,24" fill="none" stroke="#1a1a1a" stroke-width="2" stroke-linejoin="round"/>
+      <polygon points="38,28 42,10 26,24" fill="none" stroke="#1a1a1a" stroke-width="2" stroke-linejoin="round"/>
       <!-- Head -->
-      <circle cx="24" cy="32" r="14" fill="#1a1a1a"/>
-      <!-- Ears - pointy linocut style -->
-      <polygon points="12,22 8,8 20,18" fill="#1a1a1a"/>
-      <polygon points="36,22 40,8 28,18" fill="#1a1a1a"/>
-      <!-- Ear inner -->
-      <polygon points="13,21 10,12 19,19" fill="#2a1a2a" opacity="0.5"/>
-      <polygon points="35,21 38,12 29,19" fill="#2a1a2a" opacity="0.5"/>
-      <!-- Eyes - glowing -->
-      <ellipse cx="19" cy="31" rx="3" ry="3.5" fill="#c8a800"/>
-      <ellipse cx="29" cy="31" rx="3" ry="3.5" fill="#c8a800"/>
-      <ellipse cx="19" cy="31" rx="1" ry="3" fill="#1a1a1a"/>
-      <ellipse cx="29" cy="31" rx="1" ry="3" fill="#1a1a1a"/>
+      <circle cx="24" cy="36" r="16" fill="none" stroke="#1a1a1a" stroke-width="2"/>
+      <!-- Eyes -->
+      <ellipse cx="18" cy="34" rx="2.5" ry="3" fill="none" stroke="#1a1a1a" stroke-width="1.5"/>
+      <ellipse cx="30" cy="34" rx="2.5" ry="3" fill="none" stroke="#1a1a1a" stroke-width="1.5"/>
       <!-- Nose -->
-      <polygon points="24,36 22,38 26,38" fill="#c87070"/>
-      <!-- Whiskers left -->
-      <line x1="10" y1="37" x2="20" y2="38" stroke="#1a1a1a" stroke-width="1.2" opacity="0.7"/>
-      <line x1="10" y1="40" x2="20" y2="39.5" stroke="#1a1a1a" stroke-width="1.2" opacity="0.7"/>
-      <!-- Whiskers right -->
-      <line x1="38" y1="37" x2="28" y2="38" stroke="#1a1a1a" stroke-width="1.2" opacity="0.7"/>
-      <line x1="38" y1="40" x2="28" y2="39.5" stroke="#1a1a1a" stroke-width="1.2" opacity="0.7"/>
-      <!-- Paws peeking -->
-      <ellipse cx="14" cy="62" rx="6" ry="4" fill="#1a1a1a"/>
-      <ellipse cx="34" cy="62" rx="6" ry="4" fill="#1a1a1a"/>
+      <polygon points="24,39 22,41 26,41" fill="none" stroke="#1a1a1a" stroke-width="1.5" stroke-linejoin="round"/>
+      <!-- Mouth -->
+      <path d="M22 41 Q24 43 26 41" fill="none" stroke="#1a1a1a" stroke-width="1.5" stroke-linecap="round"/>
+      <!-- Whiskers -->
+      <line x1="6" y1="38" x2="18" y2="39" stroke="#1a1a1a" stroke-width="1.2" opacity="0.6"/>
+      <line x1="6" y1="42" x2="18" y2="41" stroke="#1a1a1a" stroke-width="1.2" opacity="0.6"/>
+      <line x1="42" y1="38" x2="30" y2="39" stroke="#1a1a1a" stroke-width="1.2" opacity="0.6"/>
+      <line x1="42" y1="42" x2="30" y2="41" stroke="#1a1a1a" stroke-width="1.2" opacity="0.6"/>
+      <!-- Body suggestion -->
+      <path d="M10 50 Q8 58 16 60 Q24 62 32 60 Q40 58 38 50" fill="none" stroke="#1a1a1a" stroke-width="2" stroke-linecap="round"/>
+      <!-- Tail curling -->
+      <path d="M38 54 Q50 48 48 38 Q46 30 52 26" fill="none" stroke="#1a1a1a" stroke-width="2" stroke-linecap="round"/>
     </svg>
   </div>
 </template>
