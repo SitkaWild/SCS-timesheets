@@ -123,7 +123,13 @@ input[type=number]{width:80px;text-align:right;}
 .ur.hdr{font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.07em;color:var(--t3);}
 .admin-pill{font-size:10px;padding:2px 7px;background:var(--accent-lt);color:var(--accent);border-radius:20px;font-weight:600;}
 .dot-menu{position:relative;display:inline-block;}
+.dot-menu{position:relative;display:inline-block;}
 .dot-btn{background:none;border:1px solid transparent;border-radius:var(--r);padding:4px 10px;cursor:pointer;font-size:16px;color:var(--t2);line-height:1;}
+.dot-btn:hover{background:var(--bg);border-color:var(--border);}
+.dot-drop{display:none;position:absolute;right:0;top:100%;background:var(--surface);border:1px solid var(--border);border-radius:var(--r);box-shadow:0 4px 12px rgba(0,0,0,.1);z-index:100;min-width:140px;padding:4px 0;}
+.dot-drop.open{display:block;}
+.dot-item{padding:8px 14px;font-size:13px;cursor:pointer;color:var(--text);white-space:nowrap;}
+.dot-item:hover{background:var(--bg);}
 .dot-btn:hover{background:var(--bg);border-color:var(--border);}
 .dot-dd{display:none;position:absolute;right:0;top:100%;background:var(--surface);border:1px solid var(--border);border-radius:var(--r);min-width:155px;z-index:200;box-shadow:0 4px 12px rgba(0,0,0,.1);}
 .dot-dd.open{display:block;}
@@ -893,7 +899,7 @@ async function enterApp(){
   var cfg=getEJSConfig();
   if(cfg.pubKey)emailjs.init(cfg.pubKey);
 }
-function logout(){currentUser=null;pinBuf='';closeRefPanel();draftReceiptUrls=[];initLogin();}
+function logout(){clearSessionTimer();currentUser=null;pinBuf='';closeRefPanel();draftReceiptUrls=[];initLogin();}
 
 // --- PANELS ---
 function showPanel(id,btn){
@@ -966,16 +972,30 @@ function initTS(){
   var sel=document.getElementById('pay-period');
   var today=new Date();
   var todayStr=today.toISOString().slice(0,10);
-  var best=0;
+  var best=-1;
+  // Find period where today falls within start-end range
   PP.forEach(function(p,i){
-    // Stay on current period until Tuesday after due date
-    // due date is Friday, Tuesday after = due + 4 days
-    var dueDate=new Date(p.due);
-    var cutoff=new Date(dueDate);
-    cutoff.setDate(cutoff.getDate()+4); // Tuesday after due Friday
-    var cutoffStr=cutoff.toISOString().slice(0,10);
-    if(todayStr>=p.s&&todayStr<=cutoffStr)best=i;
+    if(todayStr>=p.s&&todayStr<=p.e) best=i;
   });
+  // If not in any period (between periods), find the period whose due date
+  // is closest in the future (within 4 days - Tuesday after due Friday)
+  if(best<0){
+    PP.forEach(function(p,i){
+      var dueDate=new Date(p.due+'T12:00:00');
+      var cutoff=new Date(dueDate);
+      cutoff.setDate(cutoff.getDate()+4);
+      var cutoffStr=cutoff.toISOString().slice(0,10);
+      var dueStr=dueDate.toISOString().slice(0,10);
+      if(todayStr>p.e&&todayStr<=cutoffStr) best=i;
+    });
+  }
+  // Final fallback - find nearest upcoming period
+  if(best<0){
+    for(var i=0;i<PP.length;i++){
+      if(todayStr<=PP[i].e){best=i;break;}
+    }
+  }
+  if(best<0) best=0;
   sel.innerHTML=PP.map(function(p,i){return '<option value="'+i+'">'+p.l+'</option>';}).join('');
   sel.value=best;updatePeriodInfo();
 }
@@ -1080,7 +1100,7 @@ function buildTSGrid(){
 
   // Build footer (daily totals)
   var footHtml='<tr>';
-  footHtml+='<td colspan="2" style="padding:4px 8px;font-size:12px;font-weight:700;border-top:2px solid var(--border);background:var(--bg);">Daily totals</td>';
+  footHtml+='<td style="padding:4px 8px;font-size:12px;font-weight:700;border-top:2px solid var(--border);background:var(--bg);">Daily totals</td>';
   days.forEach(function(d,di){
     footHtml+='<td class="day-total" id="dt-'+di+'">0.0</td>';
   });
@@ -1265,8 +1285,10 @@ async function submitTS(){
   if(r.error){flash(document.getElementById('ts-msg'),'Error: '+r.error.message,'err');return;}
   clearTSDraft();
   clearTS();
-  showSuccess('Timesheet submitted!', 'Your timesheet for '+p.l+' has been submitted and is awaiting approval. You will receive an email when it is reviewed.');
+  showSuccess('Timesheet submitted!', 'Your timesheet for '+p.l+' has been submitted and is awaiting approval.');
   sendAdminAlert({staff_name:currentUser.name,period:p.l,period_payday:p.pay,total_hours:total});
+  // Refresh period info to show submitted status in warn bar
+  setTimeout(function(){updatePeriodInfo();},500);
 }
 
 // --- HISTORY ---
@@ -1402,7 +1424,7 @@ async function renderApprovals(){
       });
       // Totals row
       expandGridHtml+='<tr style="border-top:2px solid var(--border);">';
-      expandGridHtml+='<td colspan="2" style="padding:4px 6px;font-weight:700;font-size:10px;border:1px solid var(--border);background:var(--bg);">Daily totals</td>';
+      expandGridHtml+='<td style="padding:4px 6px;font-weight:700;font-size:10px;border:1px solid var(--border);background:var(--bg);">Daily totals</td>';
       var gt2=0;
       expandDays.forEach(function(d){
         var ds=d.toISOString().slice(0,10);
@@ -3551,6 +3573,40 @@ function printReimbSummaryReport(){
   win.document.close();
 }
 
+// --- SESSION TIMEOUT ---
+var sessionTimer = null;
+var sessionWarnTimer = null;
+var SESSION_TIMEOUT = 30 * 60 * 1000; // 30 minutes
+var SESSION_WARN = 25 * 60 * 1000;    // warn at 25 minutes
+
+function resetSessionTimer(){
+  clearTimeout(sessionTimer);
+  clearTimeout(sessionWarnTimer);
+  if(!currentUser) return;
+  sessionWarnTimer = setTimeout(function(){
+    if(!currentUser) return;
+    var stay = confirm('You will be logged out in 5 minutes due to inactivity. Click OK to stay logged in.');
+    if(stay) resetSessionTimer();
+  }, SESSION_WARN);
+  sessionTimer = setTimeout(function(){
+    if(!currentUser) return;
+    alert('You have been logged out due to inactivity.');
+    logout();
+  }, SESSION_TIMEOUT);
+}
+
+function initSessionTimer(){
+  ['click','keypress','mousemove','touchstart','scroll'].forEach(function(evt){
+    document.addEventListener(evt, resetSessionTimer, {passive:true});
+  });
+  resetSessionTimer();
+}
+
+function clearSessionTimer(){
+  clearTimeout(sessionTimer);
+  clearTimeout(sessionWarnTimer);
+}
+
 // --- STAFF MANAGEMENT ---
 async function renderUsers(){
   var list = document.getElementById('user-list');
@@ -4307,6 +4363,35 @@ function initRefData(){
   }
 }
 
+
+// 🎃 Halloween Easter Eggs
+(function(){
+  // Ghost peeks from top randomly
+  function peekGhost(){
+    var ghost = document.getElementById('halloween-ghost');
+    if(!ghost) return;
+    ghost.style.top = '10px';
+    setTimeout(function(){
+      ghost.style.top = '-60px';
+    }, 2000);
+    // Schedule next peek
+    setTimeout(peekGhost, 45000 + Math.random()*60000);
+  }
+  // Cat tail peeks from bottom
+  function peekCat(){
+    var cat = document.getElementById('halloween-cat');
+    if(!cat) return;
+    cat.style.bottom = '10px';
+    setTimeout(function(){
+      cat.style.bottom = '-60px';
+    }, 3000);
+    setTimeout(peekCat, 60000 + Math.random()*90000);
+  }
+  // Start after 30 seconds
+  setTimeout(function(){peekGhost();}, 30000);
+  setTimeout(function(){peekCat();}, 75000);
+})();
+
 // --- BOOT ---
 async function boot(){
   try{
@@ -4324,5 +4409,14 @@ async function boot(){
 boot();
 </script>
 
+
+<!-- 🎃 Halloween Easter Eggs -->
+<div id="halloween-cat" style="position:fixed;bottom:-60px;left:20px;font-size:36px;cursor:pointer;transition:bottom 0.4s ease;z-index:9999;user-select:none;" title="👀" onclick="this.style.bottom=this.style.bottom==='-60px'?'10px':'-60px'">🐱</div>
+<div id="halloween-ghost" style="position:fixed;top:-60px;right:80px;font-size:32px;cursor:pointer;transition:top 0.5s ease;z-index:9999;user-select:none;animation:ghostFloat 3s ease-in-out infinite;" title="Boo!" onclick="document.getElementById('halloween-cat').style.bottom='10px'">👻</div>
+<style>
+@keyframes ghostFloat{0%,100%{transform:translateY(0);}50%{transform:translateY(-8px);}}
+#halloween-ghost:hover{top:10px!important;}
+#halloween-cat:hover{bottom:10px!important;}
+</style>
 </body>
 </html>
