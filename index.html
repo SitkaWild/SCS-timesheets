@@ -1179,12 +1179,12 @@ function addCustomTSRow(){
   var html='<td class="cls-name" style="display:flex;gap:4px;align-items:center;">'+
     '<input type="text" id="cname-'+n+'" placeholder="Class name" style="flex:1;min-width:80px;font-size:11px;"/>'+
     '<button onclick="removeCustomTSRow('+n+')" style="background:none;border:none;color:var(--red);cursor:pointer;font-size:13px;flex-shrink:0;">x</button>'+
-    '</td>'+
-    '<td class="cls-code"><input type="text" id="ccode-'+n+'" placeholder="QB" style="width:38px;font-size:10px;text-align:center;font-family:monospace;"/></td>';
+    '</td>';
   days.forEach(function(d,di){
     var isWeekend=d.getDay()===0||d.getDay()===6;
     html+='<td style="padding:1px;'+(isWeekend?'background:#f8f8f6;':'')+'"><input type="number" class="tsg" id="cg-'+n+'-'+di+'" min="0" max="24" step="0.25" oninput="updateGrid()" style="width:30px;"/></td>';
   });
+  html+='<td class="cls-code" style="border-left:1px solid var(--border);"><input type="text" id="ccode-'+n+'" placeholder="QB" style="width:34px;font-size:10px;text-align:center;font-family:monospace;border:1px solid var(--border-lt);border-radius:3px;padding:2px 1px;background:var(--surface);"/></td>';
   html+='<td class="row-total" id="crt-'+n+'">0.0</td>';
   tr.innerHTML=html;
   tbody.appendChild(tr);
@@ -1372,10 +1372,7 @@ async function renderApprovals(){
       fs.insertAdjacentHTML('beforeend','<option value="'+u.id+'">'+u.name+'</option>');
   });
   if(fp&&fp.options.length<=1){
-    var seen={};
-    approvalData.forEach(function(s){
-      if(!seen[s.period]){seen[s.period]=1;fp.insertAdjacentHTML('beforeend','<option value="'+s.period+'">'+s.period+'</option>');}
-    });
+    PP.forEach(function(p2){fp.insertAdjacentHTML('beforeend','<option value="'+p2.l+'">'+p2.l+'</option>');});
   }
   var frag=document.createDocumentFragment();
   approvalData.forEach(function(s){
@@ -2472,8 +2469,7 @@ async function renderReimbApprovals(){
       rs.insertAdjacentHTML('beforeend','<option value="'+u.id+'">'+u.name+'</option>');
   });
   if(rp&&rp.options.length<=1){
-    var seen={};
-    reimbApprovalData.forEach(function(s){if(!seen[s.period]){seen[s.period]=1;rp.insertAdjacentHTML('beforeend','<option value="'+s.period+'">'+s.period+'</option>');}});
+    PP.forEach(function(p2){rp.insertAdjacentHTML('beforeend','<option value="'+p2.l+'">'+p2.l+'</option>');});
   }
   var frag = document.createDocumentFragment();
   reimbApprovalData.forEach(function(s){
