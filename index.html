@@ -837,7 +837,7 @@ async function psub(){
     if(res.error==='locked') err.textContent='This account is locked after too many incorrect PINs. Please ask an admin to unlock it.';
     else if(res.error==='invalid'&&res.attempts_left!==undefined) err.textContent='Incorrect PIN. '+res.attempts_left+' attempt'+(res.attempts_left===1?'':'s')+' left before the account locks.';
     else if(res.error==='invalid') err.textContent='Incorrect PIN. Please try again.';
-    else err.textContent='Could not sign in right now. Please try again in a moment.';
+    else err.textContent='Could not sign in right now. Please try again in a moment. [code '+res._status+': '+(res.error||res.message||res.msg||'no details')+(res.detail?' - '+res.detail:'')+']';
     return;
   }
   var ses=await sb.auth.setSession({access_token:res.access_token,refresh_token:res.refresh_token});
