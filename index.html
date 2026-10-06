@@ -747,57 +747,10 @@ function showScreen(id){
   if(id!=='app') closeRefPanel();
 }
 
-// --- SECURE BACKEND HELPERS ---
-var FN_URL = SB_URL + '/functions/v1/';
-var USER_COLS = 'id,name,email,is_admin,force_pin_change,locked,failed_attempts,created_at,auth_id';
-async function callFn(name, body, useSession){
-  var headers = {'Content-Type':'application/json','apikey':SB_KEY};
-  if(useSession){
-    var ses = await sb.auth.getSession();
-    var tok = ses && ses.data && ses.data.session ? ses.data.session.access_token : '';
-    headers['Authorization'] = 'Bearer ' + tok;
-  } else {
-    headers['Authorization'] = 'Bearer ' + SB_KEY;
-  }
-  try{
-    var res = await fetch(FN_URL + name, {method:'POST', headers:headers, body:JSON.stringify(body)});
-    var data = {};
-    try{ data = await res.json(); }catch(e){}
-    data._status = res.status;
-    return data;
-  }catch(e){
-    return {error:'Could not reach the server. Check your connection and try again.', _status:0};
-  }
-}
-async function adminFn(body){
-  var r = await callFn('portal-admin', body, true);
-  return r;
-}
-// Receipts live in a private bucket. We store the file PATH and make short-lived links to view them.
-function receiptPath(u){
-  if(!u) return '';
-  u = String(u);
-  var m = u.match(/\/receipts\/(.+?)(\?.*)?$/);
-  return m ? decodeURIComponent(m[1]) : u;
-}
-async function signReceiptPaths(paths){
-  var out = {};
-  if(!paths.length) return out;
-  var r = await sb.storage.from('receipts').createSignedUrls(paths, 4*60*60);
-  (r.data||[]).forEach(function(x){ if(x && x.signedUrl) out[x.path] = x.signedUrl; });
-  return out;
-}
-async function signReimbList(list){
-  var paths = [];
-  list.forEach(function(s){ (s.receipt_urls||[]).forEach(function(u){ var p=receiptPath(u); if(p && paths.indexOf(p)<0) paths.push(p); }); });
-  var map = await signReceiptPaths(paths);
-  list.forEach(function(s){ s._rurls = (s.receipt_urls||[]).map(function(u){ return map[receiptPath(u)] || ''; }).filter(Boolean); });
-}
-
 // --- LOGIN ---
 async function initLogin(){
   showScreen('login');
-  var r=await sb.rpc('login_names');
+  var r=await sb.from('users').select('*');
   if(r.error){console.error(r.error);return;}
   var ln=function(n){var p=n.trim().split(/\s+/);return p.length>1?p[p.length-1]:p[0];};
   allUsers=(r.data||[]).sort(function(a,b){return ln(a.name).localeCompare(ln(b.name));});
@@ -822,35 +775,15 @@ function updDots(){
   for(var i=0;i<4;i++)document.getElementById('pd'+i).classList.toggle('filled',i<pinBuf.length);
   if(pinBuf.length>0)document.getElementById('login-err').textContent='';
 }
-var loginBusy=false;
 async function psub(){
-  if(loginBusy)return;
   var uid=document.getElementById('login-select').value;
   var err=document.getElementById('login-err');
   if(!uid){err.textContent='Please select your name.';pinBuf='';updDots();return;}
   if(pinBuf.length<4){err.textContent='Please enter your 4-digit PIN.';return;}
-  loginBusy=true;err.textContent='Signing in...';
-  var res=await callFn('portal-login',{action:'login',user_id:uid,pin:pinBuf},false);
-  loginBusy=false;
-  if(res.error||!res.access_token){
-    pinBuf='';updDots();
-    if(res.error==='locked') err.textContent='This account is locked after too many incorrect PINs. Please ask an admin to unlock it.';
-    else if(res.error==='invalid'&&res.attempts_left!==undefined) err.textContent='Incorrect PIN. '+res.attempts_left+' attempt'+(res.attempts_left===1?'':'s')+' left before the account locks.';
-    else if(res.error==='invalid') err.textContent='Incorrect PIN. Please try again.';
-    else err.textContent='Could not sign in right now. Please try again in a moment. [code '+res._status+': '+(res.error||res.message||res.msg||'no details')+(res.detail?' - '+res.detail:'')+']';
-    return;
-  }
-  var ses=await sb.auth.setSession({access_token:res.access_token,refresh_token:res.refresh_token});
-  if(ses.error||!ses.data||!ses.data.user){err.textContent='Sign-in failed. Please try again.';return;}
-  var me=await sb.from('users').select(USER_COLS).eq('auth_id',ses.data.user.id).maybeSingle();
-  if(me.error||!me.data){await sb.auth.signOut();err.textContent='Your account is not set up correctly. Please contact an admin.';pinBuf='';updDots();return;}
-  err.textContent='';currentUser=me.data;
-  allUsers=[currentUser];
-  if(currentUser.is_admin){
-    var all=await sb.from('users').select(USER_COLS).order('name');
-    if(!all.error&&all.data)allUsers=all.data;
-  }
-  if(currentUser.force_pin_change)await initChangePIN();
+  var user=allUsers.find(function(u){return u.id===uid;});
+  if(!user||user.pin!==pinBuf){err.textContent='Incorrect PIN. Please try again.';pinBuf='';updDots();return;}
+  err.textContent='';currentUser=user;
+  if(user.force_pin_change)await initChangePIN();
   else await enterApp();
 }
 
@@ -880,9 +813,9 @@ function updCPDots(){
 async function cpconfirm(){
   var err=document.getElementById('cp-err');
   if(cpb1!==cpb2){err.textContent="PINs don't match. Try again.";cpb1='';cpb2='';cpstep=1;updCPDots();return;}
-  var r=await callFn('portal-login',{action:'set_pin',pin:cpb1},true);
-  if(r.error||!r.ok){err.textContent='Error: '+(r.error||'could not save PIN');cpb1='';cpb2='';cpstep=1;updCPDots();return;}
-  currentUser.force_pin_change=false;
+  var r=await sb.from('users').update({pin:cpb1,force_pin_change:false}).eq('id',currentUser.id);
+  if(r.error){err.textContent='Error: '+r.error.message;return;}
+  currentUser.pin=cpb1;currentUser.force_pin_change=false;
   await enterApp();
 }
 
@@ -968,7 +901,7 @@ async function enterApp(){
   var cfg=getEJSConfig();
   if(cfg.pubKey)emailjs.init(cfg.pubKey);
 }
-function logout(){clearSessionTimer();currentUser=null;allUsers=[];pinBuf='';closeRefPanel();draftReceiptUrls=[];try{sb.auth.signOut();}catch(e){}initLogin();}
+function logout(){clearSessionTimer();currentUser=null;pinBuf='';closeRefPanel();draftReceiptUrls=[];initLogin();}
 
 // --- PANELS ---
 function showPanel(id,btn){
@@ -993,13 +926,10 @@ function showPanel(id,btn){
         var preview = document.getElementById('receipt-preview');
         if(preview){
           preview.innerHTML='';
-          signReceiptPaths(draftReceiptUrls.map(function(d){return d.path;})).then(function(map){
-            draftReceiptUrls.forEach(function(d){
-              d.url = map[d.path] || d.url;
-              var ext=d.path.split('.').pop().toLowerCase();
-              var type=['jpg','jpeg','png','gif','webp','heic'].indexOf(ext)>=0?'image/'+ext:'application/octet-stream';
-              addReceiptPreview(preview, d.url, d.path, d.path.split('/').pop(), type);
-            });
+          draftReceiptUrls.forEach(function(d){
+            var ext=d.url.split('.').pop().toLowerCase();
+            var type=['jpg','jpeg','png','gif','webp','heic'].indexOf(ext)>=0?'image/'+ext:'application/octet-stream';
+            addReceiptPreview(preview, d.url, d.path, d.path.split('/').pop(), type);
           });
         }
       }
@@ -1178,7 +1108,6 @@ function buildTSGrid(){
   });
   footHtml+='<td class="grand-total-cell" id="grand-total" style="border-left:2px solid var(--border);">0.0</td>';
   footHtml+='</tr>';
-  // Repeat the weekday/date labels below the totals so they're easy to reference without scrolling back up
   footHtml+='<tr>';
   footHtml+='<td style="padding:2px 8px;font-size:9px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--t3);background:var(--bg);">Day</td>';
   days.forEach(function(d){
@@ -1755,6 +1684,69 @@ function batchPrint(){
   win.document.close();
 }
 
+function editUserName(id){
+  closeDots();cancelUserEdit();
+  var u=allUsers.find(function(x){return x.id===id;});if(!u)return;
+  var row=document.getElementById('ur-'+id);if(!row)return;
+  row.setAttribute('data-editing','1');
+  row.innerHTML='<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;grid-column:1/-1;padding:4px 0;">'+
+    '<label style="font-size:11px;font-weight:600;color:var(--t2);text-transform:uppercase;white-space:nowrap;">New name</label>'+
+    '<input type="text" id="ue-val" value="'+u.name.replace(/"/g,'&quot;')+'" style="flex:1;min-width:160px;font-size:14px;"/>'+
+    '<button class="btn btn-sm btn-primary" onclick="saveUserName(this.dataset.uid)" data-uid="'+id+'">Save</button>'+
+    '<button class="btn btn-sm" onclick="cancelUserEdit()">Cancel</button></div>';
+  setTimeout(function(){var el=document.getElementById('ue-val');if(el){el.focus();el.select();}},50);
+}
+function editUserEmail(id){
+  closeDots();cancelUserEdit();
+  var u=allUsers.find(function(x){return x.id===id;});if(!u)return;
+  var row=document.getElementById('ur-'+id);if(!row)return;
+  row.setAttribute('data-editing','1');
+  row.innerHTML='<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;grid-column:1/-1;padding:4px 0;">'+
+    '<label style="font-size:11px;font-weight:600;color:var(--t2);text-transform:uppercase;white-space:nowrap;">Email</label>'+
+    '<input type="text" id="ue-val" value="'+(u.email||'')+'" placeholder="name@sitkawild.org" style="flex:1;min-width:200px;font-size:14px;"/>'+
+    '<button class="btn btn-sm btn-primary" onclick="saveUserEmail(this.dataset.uid)" data-uid="'+id+'">Save</button>'+
+    '<button class="btn btn-sm" onclick="cancelUserEdit()">Cancel</button></div>';
+  setTimeout(function(){var el=document.getElementById('ue-val');if(el){el.focus();el.select();}},50);
+}
+function editUserPIN(id){
+  closeDots();cancelUserEdit();
+  var row=document.getElementById('ur-'+id);if(!row)return;
+  row.setAttribute('data-editing','1');
+  row.innerHTML='<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;grid-column:1/-1;padding:4px 0;">'+
+    '<label style="font-size:11px;font-weight:600;color:var(--t2);text-transform:uppercase;white-space:nowrap;">New PIN</label>'+
+    '<input type="password" id="ue-pin" maxlength="4" inputmode="numeric" placeholder="4 digits" style="width:90px;font-size:14px;"/>'+
+    '<input type="password" id="ue-pin2" maxlength="4" inputmode="numeric" placeholder="Confirm" style="width:100px;font-size:14px;"/>'+
+    '<button class="btn btn-sm btn-primary" onclick="saveUserPIN(this.dataset.uid)" data-uid="'+id+'">Save</button>'+
+    '<button class="btn btn-sm" onclick="cancelUserEdit()">Cancel</button></div>';
+  setTimeout(function(){document.getElementById('ue-pin').focus();},50);
+}
+function cancelUserEdit(){var el=document.querySelector('[data-editing]');if(el)renderUsers();}
+async function saveUserName(id){
+  var val=document.getElementById('ue-val').value.trim();
+  if(!val){alert('Name cannot be empty.');return;}
+  var r=await sb.from('users').update({name:val}).eq('id',id);
+  if(r.error){alert('Error: '+r.error.message);return;}
+  if(id===currentUser.id){currentUser.name=val;document.getElementById('nav-uname').textContent=val;document.getElementById('ts-emp').textContent=val;}
+  await renderUsers();await refreshLoginUsers();
+  flash(document.getElementById('user-msg'),'Name updated.','ok');
+}
+async function saveUserEmail(id){
+  var val=document.getElementById('ue-val').value.trim()||null;
+  var r=await sb.from('users').update({email:val}).eq('id',id);
+  if(r.error){alert('Error: '+r.error.message);return;}
+  await renderUsers();
+  flash(document.getElementById('user-msg'),'Email updated.','ok');
+}
+async function saveUserPIN(id){
+  var pin=document.getElementById('ue-pin').value.trim();
+  var pin2=document.getElementById('ue-pin2').value.trim();
+  var msg=document.getElementById('user-msg');
+  if(!pin||!/^\d{4}$/.test(pin)){flash(msg,'PIN must be exactly 4 digits.','err');return;}
+  if(pin!==pin2){flash(msg,"PINs don't match.",'err');return;}
+  var r=await sb.from('users').update({pin:pin}).eq('id',id);
+  if(r.error){flash(msg,'Error: '+r.error.message,'err');return;}
+  await renderUsers();flash(msg,'PIN updated.','ok');
+}
 function toggleDot(uid){closeDots(uid);var dd=document.getElementById('dd-'+uid);if(dd)dd.classList.toggle('open');}
 function closeDots(ex){document.querySelectorAll('.dot-dd.open').forEach(function(d){if(!ex||d.id!=='dd-'+ex)d.classList.remove('open');});}
 document.addEventListener('click',function(e){if(!e.target.closest('.dot-menu'))closeDots();});
@@ -2329,8 +2321,8 @@ async function previewReceipts(event){
     var draftPath = 'drafts/'+currentUser.id+'/'+Date.now()+'_'+i+'.'+ext;
     var r = await sb.storage.from('receipts').upload(draftPath, file, {cacheControl:'86400',upsert:false});
     if(!r.error){
-      var sg = await sb.storage.from('receipts').createSignedUrl(draftPath, 4*60*60);
-      var url = (sg.data && sg.data.signedUrl) || '';
+      var urlData = sb.storage.from('receipts').getPublicUrl(draftPath);
+      var url = urlData.data.publicUrl;
       draftReceiptUrls.push({url:url, path:draftPath});
       saveDraftReceiptUrls();
       addReceiptPreview(preview, url, draftPath, file.name, file.type);
@@ -2372,7 +2364,7 @@ function addReceiptPreview(preview, url, path, name, type){
 async function uploadReceipts(reimbId){
   // Receipts already uploaded to drafts - just return their URLs
   // They'll stay in drafts folder (30 day retention is fine)
-  return draftReceiptUrls.map(function(d){return d.path;});
+  return draftReceiptUrls.map(function(d){return d.url;});
 }
 
 async function submitReimb(){
@@ -2485,7 +2477,6 @@ async function renderReimbApprovals(){
   var r = await q;
   reimbApprovalData = r.data||[];
   if(!reimbApprovalData.length){list.innerHTML='<div class="empty">No reimbursement requests</div>';return;}
-  await signReimbList(reimbApprovalData);
   if(rs&&rs.options.length<=1) allUsers.forEach(function(u){
     if(!rs.querySelector('option[value="'+u.id+'"]'))
       rs.insertAdjacentHTML('beforeend','<option value="'+u.id+'">'+u.name+'</option>');
@@ -2510,11 +2501,11 @@ async function renderReimbApprovals(){
         '<td style="padding:5px 10px;font-weight:600;text-align:right;">$'+parseFloat(e.cost).toFixed(2)+'</td></tr>';
     }).join('');
     var receiptHtml = '';
-    if(s._rurls&&s._rurls.length){
+    if(s.receipt_urls&&s.receipt_urls.length){
       receiptHtml = '<div style="padding:8px 10px;border-top:1px solid var(--border-lt);">';
-      receiptHtml += '<div style="font-size:10px;font-weight:600;text-transform:uppercase;color:var(--t3);margin-bottom:6px;">Receipts ('+s._rurls.length+')</div>';
+      receiptHtml += '<div style="font-size:10px;font-weight:600;text-transform:uppercase;color:var(--t3);margin-bottom:6px;">Receipts ('+s.receipt_urls.length+')</div>';
       receiptHtml += '<div style="display:flex;flex-wrap:wrap;gap:8px;">';
-      s._rurls.forEach(function(url){
+      s.receipt_urls.forEach(function(url){
         receiptHtml += '<a href="'+url+'" target="_blank" style="display:block;">'+
           '<img src="'+url+'" style="height:90px;width:90px;object-fit:cover;border-radius:6px;border:1px solid var(--border);display:block;"/>'+
           '</a>';
@@ -2591,11 +2582,11 @@ function buildReimbPrintHTML(s){
   var sigDate = s.employee_sig_date || '___________';
   // Receipts - one per page after main form
   var receiptPages='';
-  if(s._rurls&&s._rurls.length){
-    s._rurls.forEach(function(url, i){
+  if(s.receipt_urls&&s.receipt_urls.length){
+    s.receipt_urls.forEach(function(url, i){
       receiptPages+=
         '<div style="page-break-before:always;padding:1.5rem;">'+
-        '<h3 style="font-family:Arial,sans-serif;font-size:14px;margin-bottom:4px;">Receipt '+(i+1)+' of '+s._rurls.length+'</h3>'+
+        '<h3 style="font-family:Arial,sans-serif;font-size:14px;margin-bottom:4px;">Receipt '+(i+1)+' of '+s.receipt_urls.length+'</h3>'+
         '<div style="font-size:11px;color:#666;margin-bottom:1rem;">'+s.staff_name+' — '+s.period+'</div>'+
         '<img src="'+url+'" style="max-width:100%;max-height:calc(100vh - 120px);object-fit:contain;border:1px solid #ccc;border-radius:4px;display:block;"/>'+
         '</div>';
@@ -2690,9 +2681,9 @@ function batchPrintReimb(){
         '<td style="padding:5px 8px;border-bottom:1px solid #eee;">'+(e.class_code||'')+'</td></tr>';
     }).join('');
     var receiptImgs = '';
-    if(s._rurls&&s._rurls.length){
+    if(s.receipt_urls&&s.receipt_urls.length){
       receiptImgs = '<div style="margin-top:1rem;"><div style="font-size:9px;font-weight:700;text-transform:uppercase;color:#666;margin-bottom:6px;">Receipts</div><div style="display:flex;flex-wrap:wrap;gap:8px;">';
-      s._rurls.forEach(function(url){
+      s.receipt_urls.forEach(function(url){
         receiptImgs += '<img src="'+url+'" style="height:120px;max-width:180px;object-fit:contain;border:1px solid #ccc;border-radius:4px;"/>';
       });
       receiptImgs += '</div></div>';
@@ -2855,7 +2846,6 @@ function renderDashboardCalendar(year, month){
 async function printStaffReimb(id){
   var r = await sb.from('reimbursements').select('*').eq('id',id).single();
   if(!r.data){alert('Could not load reimbursement.');return;}
-  await signReimbList([r.data]);
   printSingleReimb(r.data);
 }
 
@@ -2964,16 +2954,13 @@ async function cancelAndEditReimb(id){
       var preview = document.getElementById('receipt-preview');
       preview.innerHTML = '';
       clearDraftReceiptUrls();
-      var rpaths = s.receipt_urls.map(receiptPath);
-      signReceiptPaths(rpaths).then(function(map){
-        rpaths.forEach(function(path){
-          var url = map[path] || '';
-          draftReceiptUrls.push({url:url, path:path});
-          var ext = path.split('.').pop().toLowerCase();
-          var type = ['jpg','jpeg','png','gif','webp','heic'].indexOf(ext)>=0 ? 'image/'+ext : 'application/octet-stream';
-          addReceiptPreview(preview, url, path, path.split('/').pop(), type);
-        });
-        saveDraftReceiptUrls();
+      s.receipt_urls.forEach(function(url){
+        var path = url.split('/receipts/')[1] || url;
+        draftReceiptUrls.push({url:url, path:path});
+        // Guess type from extension
+        var ext = url.split('.').pop().toLowerCase();
+        var type = ['jpg','jpeg','png','gif','webp','heic'].indexOf(ext)>=0 ? 'image/'+ext : 'application/octet-stream';
+        addReceiptPreview(preview, url, path, path.split('/').pop(), type);
       });
     }
     // Restore signature
@@ -3316,8 +3303,7 @@ function downloadReimbPDF(){
     status: 'draft',
     employee_signature: empSig,
     employee_sig_date: sigDate,
-    receipt_urls: draftReceiptUrls.map(function(d){return d.path;}),
-    _rurls: draftReceiptUrls.map(function(d){return d.url;}).filter(Boolean)
+    receipt_urls: draftReceiptUrls.map(function(d){return d.url;})
   };
   var win = window.open('','_blank');
   if(!win){alert('Please allow popups.');return;}
@@ -3634,7 +3620,7 @@ function clearSessionTimer(){
 async function renderUsers(){
   var list = document.getElementById('user-list');
   if(!list) return;
-  var r = await sb.from('users').select(USER_COLS).order('name');
+  var r = await sb.from('users').select('*').order('name');
   if(r.error){list.innerHTML='<div class="empty" style="color:var(--red);">Error loading staff: '+r.error.message+'</div>';return;}
   allUsers = r.data||[];
   if(!allUsers.length){list.innerHTML='<div class="empty">No staff yet — add one above.</div>';return;}
@@ -3646,14 +3632,13 @@ async function renderUsers(){
     row.innerHTML =
       '<span style="font-weight:'+(u.is_admin?'600':'400')+';">'+u.name+'</span>'+
       '<span style="font-size:12px;color:var(--t2);">'+(u.email||'--')+'</span>'+
-      '<span style="font-size:11px;color:'+(u.is_admin?'var(--accent)':'var(--t3)')+';">'+(u.is_admin?'Admin':'Staff')+(u.locked?' <span style="color:var(--red);font-weight:700;">&middot; LOCKED</span>':'')+'</span>'+
+      '<span style="font-size:11px;color:'+(u.is_admin?'var(--accent)':'var(--t3)')+';">'+(u.is_admin?'Admin':'Staff')+'</span>'+
       '<div class="dot-menu">'+
         '<button class="dot-btn" onclick="toggleDotMenu(&quot;dm-&quot;+this.dataset.uid)" data-uid="'+u.id+'">&#8942;</button>'+
         '<div class="dot-drop" id="dm-'+u.id+'">'+
           '<div class="dot-item" onclick="editUserName(this)" data-uid="'+u.id+'" data-name="'+u.name.replace(/"/g,'&quot;')+'">Rename</div>'+
           '<div class="dot-item" onclick="editUserEmail(this)" data-uid="'+u.id+'" data-email="'+(u.email||'').replace(/"/g,'&quot;')+'">Edit email</div>'+
           '<div class="dot-item" onclick="resetUserPin(this)" data-uid="'+u.id+'" data-name="'+u.name.replace(/"/g,'&quot;')+'">Reset PIN</div>'+
-          (u.locked?'<div class="dot-item" style="color:var(--accent);font-weight:600;" onclick="unlockUser(this)" data-uid="'+u.id+'" data-name="'+u.name.replace(/"/g,'&quot;')+'">Unlock account</div>':'')+
           '<div class="dot-item" onclick="toggleAdmin(this)" data-uid="'+u.id+'" data-admin="'+(u.is_admin?'1':'0')+'">Make '+(u.is_admin?'staff':'admin')+'</div>'+
           '<div class="dot-item" style="color:var(--red);" onclick="deleteUser(this)" data-uid="'+u.id+'" data-name="'+u.name.replace(/"/g,'&quot;')+'">Remove</div>'+
         '</div>'+
@@ -3681,8 +3666,8 @@ async function addEmployee(){
   var msg = document.getElementById('user-msg');
   if(!name||!pin){flash(msg,'Name and PIN required.','err');return;}
   if(pin.length!==4||!/^\d{4}$/.test(pin)){flash(msg,'PIN must be exactly 4 digits.','err');return;}
-  var r = await adminFn({action:'create_user',name:name,pin:pin,email:email,is_admin:isAdmin});
-  if(r.error){flash(msg,r.error,'err');return;}
+  var r = await sb.from('users').insert({name:name,pin:pin,email:email||null,is_admin:isAdmin,force_pin_change:true});
+  if(r.error){flash(msg,r.error.message,'err');return;}
   document.getElementById('ne-name').value='';
   document.getElementById('ne-pin').value='';
   document.getElementById('ne-email').value='';
@@ -3695,8 +3680,8 @@ async function editUserName(el){
   var id=el.dataset.uid, current=el.dataset.name;
   var val = prompt('New name for '+current+':', current);
   if(!val||!val.trim()||val.trim()===current) return;
-  var r = await adminFn({action:'update_user',id:id,name:val.trim()});
-  if(r.error){alert(r.error);return;}
+  var r = await sb.from('users').update({name:val.trim()}).eq('id',id);
+  if(r.error){alert(r.error.message);return;}
   renderUsers();
 }
 
@@ -3704,8 +3689,8 @@ async function editUserEmail(el){
   var id=el.dataset.uid, current=el.dataset.email||'';
   var val = prompt('Email address:', current);
   if(val===null) return;
-  var r = await adminFn({action:'update_user',id:id,email:val.trim()});
-  if(r.error){alert(r.error);return;}
+  var r = await sb.from('users').update({email:val.trim()||null}).eq('id',id);
+  if(r.error){alert(r.error.message);return;}
   renderUsers();
 }
 
@@ -3714,36 +3699,26 @@ async function resetUserPin(el){
   var pin = prompt('Enter new 4-digit PIN for '+name+':');
   if(!pin) return;
   if(!/^\d{4}$/.test(pin)){alert('PIN must be exactly 4 digits.');return;}
-  var r = await adminFn({action:'reset_pin',id:id,pin:pin});
-  if(r.error){alert(r.error);return;}
+  var r = await sb.from('users').update({pin:pin,force_pin_change:true}).eq('id',id);
+  if(r.error){alert(r.error.message);return;}
   flash(document.getElementById('user-msg'),'PIN reset. '+name+' will be prompted to change it on next login.','ok');
-  renderUsers();
-}
-
-async function unlockUser(el){
-  var id=el.dataset.uid, name=el.dataset.name;
-  var r = await adminFn({action:'unlock',id:id});
-  if(r.error){alert(r.error);return;}
-  flash(document.getElementById('user-msg'),name+' is unlocked and can try again.','ok');
   renderUsers();
 }
 
 async function toggleAdmin(el){
   var id=el.dataset.uid, currentlyAdmin=el.dataset.admin==='1';
   var action = currentlyAdmin ? 'Remove admin access from' : 'Grant admin access to';
-  var u = allUsers.find(function(x){return x.id===id;});
-  var name = u ? u.name : 'this user';
+  var r = await sb.from('users').select('name').eq('id',id).single();
+  var name = r.data ? r.data.name : 'this user';
   if(!confirm(action+' '+name+'?')) return;
-  var r = await adminFn({action:'set_admin',id:id,is_admin:!currentlyAdmin});
-  if(r.error){alert(r.error);return;}
+  await sb.from('users').update({is_admin:!currentlyAdmin}).eq('id',id);
   renderUsers();
 }
 
 async function deleteUser(el){
   var id=el.dataset.uid, name=el.dataset.name;
   if(!confirm('Remove '+name+' from the system? This cannot be undone.')) return;
-  var r = await adminFn({action:'delete_user',id:id});
-  if(r.error){alert(r.error);return;}
+  await sb.from('users').delete().eq('id',id);
   renderUsers();
 }
 
@@ -4485,7 +4460,7 @@ function initRefData(){
 // --- BOOT ---
 async function boot(){
   try{
-    sb=supabase.createClient(SB_URL,SB_KEY,{auth:{persistSession:false,autoRefreshToken:true,detectSessionInUrl:false}});
+    sb=supabase.createClient(SB_URL,SB_KEY);
     setupNumpad();
     initRefData();
     initQRClasses();
